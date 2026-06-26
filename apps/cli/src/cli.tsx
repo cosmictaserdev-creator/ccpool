@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import React from "react";
-import { render, Box, Text } from "ink";
+import { render, Box, Text, useInput, useApp } from "ink";
+import { Command } from "commander";
+
+// ── components ────────────────────────────────────────────────────────────────
 
 const members = [
   { name: "alice", used5h: 62, used7d: 34, isYou: false },
@@ -19,7 +22,7 @@ function Bar({ pct, width = 20 }: { pct: number; width?: number }) {
   );
 }
 
-function Section({ label, key5h }: { label: string; key5h: boolean }) {
+function Section({ label, keyField }: { label: string; keyField: "used5h" | "used7d" }) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Text color="gray" dimColor>
@@ -30,49 +33,73 @@ function Section({ label, key5h }: { label: string; key5h: boolean }) {
           <Text color={m.isYou ? "white" : "gray"}>
             {m.isYou ? "▸" : " "} {m.name.padEnd(8)}
           </Text>
-          <Bar pct={key5h ? m.used5h : m.used7d} />
+          <Bar pct={m[keyField]} />
         </Box>
       ))}
     </Box>
   );
 }
 
-function App() {
+function Dashboard() {
+  const { exit } = useApp();
+
+  useInput((input) => {
+    if (input === "q") exit();
+  });
+
   return (
     <Box flexDirection="column" padding={1} borderStyle="single" borderColor="gray">
       <Box marginBottom={1}>
         <Text color="gray" dimColor>
-          ccshare v0.1 &nbsp;·&nbsp; logged in as{" "}
+          ccshare v0.0.1 · logged in as{" "}
         </Text>
         <Text color="white">bob</Text>
       </Box>
 
-      <Section label="5-hour window" key5h={true} />
-      <Section label="weekly window" key5h={false} />
+      <Section label="5-hour window" keyField="used5h" />
+      <Section label="weekly window" keyField="used7d" />
 
       <Box marginTop={1}>
         <Text color="gray" dimColor>
           next 5h reset{" "}
         </Text>
-        <Text color="white">2h 14m &nbsp;</Text>
+        <Text color="white">2h 14m </Text>
         <Text color="gray" dimColor>
-          weekly reset{" "}
+          · weekly reset{" "}
         </Text>
         <Text color="white">4d 07h</Text>
       </Box>
 
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          press{" "}
-        </Text>
-        <Text color="white">q</Text>
-        <Text color="gray" dimColor>
-          {" "}
-          to quit
+          press <Text color="white">q</Text> to quit
         </Text>
       </Box>
     </Box>
   );
 }
 
-render(<App />);
+// ── cli ───────────────────────────────────────────────────────────────────────
+
+const program = new Command();
+
+program
+  .name("ccshare")
+  .description("Fair Claude subscription sharing across 5-hour and weekly usage windows.")
+  .version("0.0.1");
+
+program
+  .option("-w, --watch", "live usage dashboard — stays active until you press q")
+  .action((opts: { watch?: boolean }) => {
+    if (opts.watch) {
+      console.clear();
+      render(<Dashboard />);
+    } else {
+      console.log("  No command given. Try:\n");
+      console.log("    ccshare --watch    live usage dashboard");
+      console.log("    ccshare --help     show all options\n");
+      process.exit(0);
+    }
+  });
+
+program.parse();

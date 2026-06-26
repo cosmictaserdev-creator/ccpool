@@ -1,9 +1,47 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  /* Retro Design Tokens */
+  --color-retro-bg: #0c0c0c;
+  --color-retro-fg: #f0e8c8;
+  --color-retro-orange: #e8632a;
+  --color-retro-orange-shadow: #a03010;
+  --color-retro-outline: #444;
+  --color-retro-outline-shadow: #222;
+  --color-retro-card: #111;
+  --color-retro-border: #2a2a2a;
+
+  --color-retro-stripe-1: #2b5ba3;
+  --color-retro-stripe-2: #2c8720;
+  --color-retro-stripe-3: #c28b13;
+  --color-retro-stripe-4: #cc4214;
+
+  --color-retro-feat-1: #ff763c;
+  --color-retro-feat-2: #f4b333;
+  --color-retro-feat-3: #69c24a;
+
+  --color-retro-user-1: #506ec2;
+  --color-retro-user-2: #4ea137;
+  --color-retro-user-3: #9650c2;
+  --color-retro-user-4: #ba513c;
+  --color-retro-user-5: #ba9940;
+  --color-retro-user-6: #39ab8f;
+
+  --font-size-retro-btn: 8px;
+  --font-size-retro-logo: 10px;
+  --font-size-retro-card-title: 12px;
+  --font-size-retro-label: 18px;
+  --font-size-retro-footer: 18px;
+  --font-size-retro-card-body: 20px;
+  --font-size-retro-nav: 22px;
+  --font-size-retro-body: 22px;
+  --font-size-retro-h1: 24px;
+
+  /* Starlight Variables */
   --sl-font: "IBM Plex Mono", ui-monospace, monospace;
   --sl-color-accent: #000;
   --sl-color-accent-high: #000;
@@ -21,4 +59,26 @@
   --sl-color-hairline: #e5e5e5;
   --sl-color-text: #111;
   --sl-color-text-accent: #000;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-retro-bg);
+    color: var(--color-retro-fg);
+    font-family: "VT323", monospace;
+  }
+  h1 {
+    font-size: var(--font-size-retro-h1);
+    font-family: "Press Start 2P", monospace;
+    font-weight: normal;
+  }
+  h3 {
+    font-size: var(--font-size-retro-card-title);
+    font-family: "Press Start 2P", monospace;
+    font-weight: normal;
+  }
+  ::selection {
+    background-color: var(--color-retro-orange);
+    color: #0a0a0a;
+  }
 }

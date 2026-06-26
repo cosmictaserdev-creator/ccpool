@@ -1,0 +1,792 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ccshare - Arcade Split Layout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0;
+        }
+      }
+      @keyframes crt-warp {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.002);
+          filter: brightness(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      @keyframes float-avatar {
+        0%,
+        100% {
+          transform: translateY(0px) rotate(0deg);
+        }
+        50% {
+          transform: translateY(-8px) rotate(3deg);
+        }
+      }
+      @keyframes floatA {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+      @keyframes floatB {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-7px);
+        }
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0c0c0c;
+        font-family: "VT323", monospace;
+        color: #f0e8c8;
+        overflow-x: hidden;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      ::selection {
+        background: #e8632a;
+        color: #0a0a0a;
+      }
+
+      .btn-pixel {
+        font-family: "Press Start 2P", monospace;
+        font-size: 8px;
+        color: #0a0a0a;
+        background: #e8632a;
+        padding: 10px 16px;
+        text-decoration: none;
+        border: none;
+        box-shadow: 4px 4px 0 #a03010;
+        cursor: pointer;
+        display: inline-block;
+      }
+      .btn-pixel:hover {
+        box-shadow: 2px 2px 0 #a03010;
+        transform: translate(2px, 2px);
+      }
+
+      .btn-pixel-outline {
+        font-family: "Press Start 2P", monospace;
+        font-size: 8px;
+        color: #f0e8c8;
+        background: transparent;
+        border: 2px solid #444;
+        padding: 8px 14px;
+        text-decoration: none;
+        box-shadow: 4px 4px 0 #222;
+        cursor: pointer;
+      }
+      .btn-pixel-outline:hover {
+        box-shadow: 2px 2px 0 #222;
+        transform: translate(2px, 2px);
+      }
+
+      /* Layout Switcher */
+      .switcher-btn {
+        color: #f0e8c8;
+        background: #1a1a1a;
+        border: 2px solid #2a2a2a;
+        padding: 2px 10px;
+        text-decoration: none;
+        font-size: 16px;
+      }
+      .switcher-btn:hover {
+        background: #2a2a2a;
+        border-color: #444;
+      }
+      .switcher-btn.active {
+        color: #0a0a0a;
+        background: #e8632a;
+        border-color: #a03010;
+        box-shadow: 2px 2px 0 #a03010;
+      }
+
+      /* Arcade Specific Styles */
+      .crt-container {
+        background: #08080c;
+        border: 4px solid #2a2a2a;
+        position: relative;
+        animation: crt-warp 6s ease-in-out infinite;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .joystick-base {
+        width: 76px;
+        height: 76px;
+        background: #161618;
+        position: relative;
+        margin: 0 auto;
+        clip-path: polygon(
+          16px 0px,
+          60px 0px,
+          60px 8px,
+          68px 8px,
+          68px 16px,
+          76px 16px,
+          76px 60px,
+          68px 60px,
+          68px 68px,
+          60px 68px,
+          60px 76px,
+          16px 76px,
+          16px 68px,
+          8px 68px,
+          8px 60px,
+          0px 60px,
+          0px 16px,
+          8px 16px,
+          8px 8px,
+          16px 8px
+        );
+        box-shadow:
+          inset -4px -4px 0 #2e2e34,
+          inset 4px 4px 0 #0c0c0e;
+      }
+      .joystick-stick {
+        width: 12px;
+        height: 44px;
+        background: #4e4e54;
+        position: absolute;
+        left: 32px;
+        bottom: 30px;
+        border: none;
+        box-shadow:
+          inset -3px 0 0 #2a2a2e,
+          inset 3px 0 0 #8c8c96;
+        transform-origin: bottom center;
+        transition: transform 0.15s ease;
+        z-index: 2;
+      }
+      .joystick-knob {
+        width: 32px;
+        height: 32px;
+        background: #e8632a;
+        position: absolute;
+        top: -24px;
+        left: -10px;
+        clip-path: polygon(
+          8px 0px,
+          24px 0px,
+          24px 4px,
+          28px 4px,
+          28px 8px,
+          32px 8px,
+          32px 24px,
+          28px 24px,
+          28px 28px,
+          24px 28px,
+          24px 32px,
+          8px 32px,
+          8px 28px,
+          4px 28px,
+          4px 24px,
+          0px 24px,
+          0px 8px,
+          4px 8px,
+          4px 4px,
+          8px 4px
+        );
+        box-shadow:
+          inset 4px 4px 0 #ffaa80,
+          inset -4px -4px 0 #a03010;
+      }
+
+      .arcade-btn {
+        width: 48px;
+        height: 48px;
+        cursor: pointer;
+        position: relative;
+        clip-path: polygon(
+          12px 0px,
+          36px 0px,
+          36px 4px,
+          40px 4px,
+          40px 8px,
+          44px 8px,
+          44px 12px,
+          48px 12px,
+          48px 36px,
+          44px 36px,
+          44px 40px,
+          40px 40px,
+          40px 44px,
+          36px 44px,
+          36px 48px,
+          12px 48px,
+          12px 44px,
+          8px 44px,
+          8px 40px,
+          4px 40px,
+          4px 36px,
+          0px 36px,
+          0px 12px,
+          4px 12px,
+          4px 8px,
+          8px 8px,
+          8px 4px,
+          12px 4px
+        );
+        border: none;
+        transition: transform 0.05s ease;
+      }
+      .arcade-btn:active {
+        transform: translateY(3px);
+      }
+      .arcade-btn-red {
+        background: #d4604a;
+        box-shadow:
+          inset 4px 4px 0 #ff8c75,
+          inset -4px -4px 0 #903020;
+      }
+      .arcade-btn-red:active {
+        box-shadow:
+          inset 2px 2px 0 #ff8c75,
+          inset -2px -2px 0 #903020;
+      }
+      .arcade-btn-blue {
+        background: #3a5a8a;
+        box-shadow:
+          inset 4px 4px 0 #7fa5d8,
+          inset -4px -4px 0 #20355a;
+      }
+      .arcade-btn-blue:active {
+        box-shadow:
+          inset 2px 2px 0 #7fa5d8,
+          inset -2px -2px 0 #20355a;
+      }
+      .hardware-panel {
+        background: #0f0f11;
+        border: 4px solid #222;
+        padding: 20px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin-top: 20px;
+      }
+      .lobby-user {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        animation: float-avatar 3.5s ease-in-out infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER -->
+    <header
+      style="
+        border-bottom: 2px solid #1e1e1e;
+        padding: 0 32px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #0c0c0c;
+        z-index: 50;
+      "
+    >
+      <div style="display: flex; align-items: center; gap: 12px">
+        <img
+          src="ccshare.png"
+          alt="CCShare"
+          style="height: 36px; width: auto; image-rendering: pixelated"
+        />
+        <span
+          style="
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            font-size: 10px;
+            letter-spacing: -0.5px;
+          "
+        >
+          <span style="color: #e8632a">cc</span><span style="color: #f0e8c8">share_arcade</span>
+        </span>
+      </div>
+      <nav
+        style="
+          display: flex;
+          align-items: center;
+          gap: 24px;
+          font-family: &quot;VT323&quot;, monospace;
+          font-size: 22px;
+        "
+      >
+        <a href="#" style="color: #f0e8c8; text-decoration: none; opacity: 0.6">github</a>
+        <a href="#" style="color: #f0e8c8; text-decoration: none; opacity: 0.6">linkedin</a>
+      </nav>
+    </header>
+
+    <!-- ARCADE CABINET WORKSPACE -->
+    <main
+      style="
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 40px;
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+        align-items: center;
+        width: 100%;
+      "
+    >
+      <!-- LEFT SIDE: CONTROLS, TAGLINES & GAME SPECS -->
+      <section style="display: flex; flex-direction: column; gap: 28px">
+        <div>
+          <h1
+            style="
+              font-family: &quot;Press Start 2P&quot;, monospace;
+              font-size: 24px;
+              line-height: 1.4;
+              color: #f0e8c8;
+              letter-spacing: -1px;
+              margin-bottom: 14px;
+            "
+          >
+            COOPERATIVE <br /><span style="color: #e8632a">SUBSCRIPTION SHARING</span>
+          </h1>
+          <p
+            style="
+              font-family: &quot;VT323&quot;, monospace;
+              font-size: 22px;
+              color: #ccc;
+              line-height: 1.4;
+              margin-top: 12px;
+            "
+          >
+            ccshare is a CLI tool that allows team members sharing the same Claude subscription to
+            more fairly distribute prompt allocations across both 5-hour and weekly usage windows.
+          </p>
+        </div>
+
+        <!-- FEATURES ACCORDION INFO -->
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="border: 2px solid #2a2a2a; padding: 12px 16px; background: #111">
+            <h3
+              style="
+                font-family: &quot;Press Start 2P&quot;, monospace;
+                font-size: 8px;
+                color: #e8632a;
+                margin-bottom: 6px;
+              "
+            >
+              1. 5-HOUR USAGE SMOOTHING
+            </h3>
+            <p style="font-size: 20px; color: #888">
+              Monitors active prompt volumes in rolling 5-hour slots. If a user exceeds their fair
+              share, ccshare automatically queues requests to guarantee equal access.
+            </p>
+          </div>
+
+          <div style="border: 2px solid #2a2a2a; padding: 12px 16px; background: #111">
+            <h3
+              style="
+                font-family: &quot;Press Start 2P&quot;, monospace;
+                font-size: 8px;
+                color: #a87820;
+                margin-bottom: 6px;
+              "
+            >
+              2. WEEKLY quota CAPPING
+            </h3>
+            <p style="font-size: 20px; color: #888">
+              Tracks total tokens spent throughout the week, helping teams stay within boundaries
+              and avoid subscription suspensions or service lockouts.
+            </p>
+          </div>
+
+          <div style="border: 2px solid #2a2a2a; padding: 12px 16px; background: #111">
+            <h3
+              style="
+                font-family: &quot;Press Start 2P&quot;, monospace;
+                font-size: 8px;
+                color: #5a8f4a;
+                margin-bottom: 6px;
+              "
+            >
+              3. TIERED CAPACITY PROXYING
+            </h3>
+            <p style="font-size: 20px; color: #888">
+              Optimizes throughput allocations depending on whether you share a Pro ($20/mo), Team
+              ($100/mo), or custom Enterprise ($200/mo) tier subscription.
+            </p>
+          </div>
+        </div>
+
+        <!-- PLAY BUTTONS -->
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px">
+          <a href="#" class="btn-pixel">START SESSION</a>
+          <a href="#" class="btn-pixel-outline">WATCH TUTORIAL</a>
+        </div>
+      </section>
+
+      <!-- RIGHT SIDE: COMPUTER + LOGO + 6 AGENTS -->
+      <section
+        style="
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+          overflow: visible;
+          width: 100%;
+        "
+      >
+        <div
+          style="
+            position: relative;
+            width: 640px;
+            height: 340px;
+            flex-shrink: 0;
+            overflow: visible;
+            transform: scale(0.9);
+            transform-origin: center;
+          "
+        >
+          <!-- MONITOR -->
+          <div style="position: absolute; left: 180px; top: 40px; width: 280px">
+            <img
+              src="desktop.png"
+              alt="monitor"
+              style="width: 100%; image-rendering: pixelated; display: block"
+            />
+            <div
+              style="
+                position: absolute;
+                top: 63px;
+                left: 58px;
+                width: 40%;
+                height: 40%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+              "
+            >
+              <img
+                src="claude.png"
+                alt="Claude"
+                style="
+                  width: 100%;
+                  height: auto;
+                  image-rendering: pixelated;
+                  animation: spin 12s linear infinite;
+                "
+              />
+            </div>
+          </div>
+
+          <!-- L1 -->
+          <div
+            style="
+              position: absolute;
+              left: 24px;
+              top: 14px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatA 3.4s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(200deg) saturate(0.65);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #2a2e3a; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #6878aa;
+                  letter-spacing: 1px;
+                "
+                >user_1</span
+              >
+            </div>
+          </div>
+
+          <!-- L2 -->
+          <div
+            style="
+              position: absolute;
+              left: -4px;
+              top: 120px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatB 4.1s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(270deg) saturate(0.6);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #2e2a3a; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #8868aa;
+                  letter-spacing: 1px;
+                "
+                >user_3</span
+              >
+            </div>
+          </div>
+
+          <!-- L3 -->
+          <div
+            style="
+              position: absolute;
+              left: 18px;
+              top: 238px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatA 4.6s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(40deg) saturate(0.6);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #3a3020; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #aa9050;
+                  letter-spacing: 1px;
+                "
+                >user_5</span
+              >
+            </div>
+          </div>
+
+          <!-- R1 -->
+          <div
+            style="
+              position: absolute;
+              left: 556px;
+              top: 8px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatB 2.9s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(100deg) saturate(0.6);
+                transform: scaleX(-1);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #2a3a2a; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #5a8a4a;
+                  letter-spacing: 1px;
+                "
+                >user_2</span
+              >
+            </div>
+          </div>
+
+          <!-- R2 -->
+          <div
+            style="
+              position: absolute;
+              left: 578px;
+              top: 120px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatA 3.7s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(340deg) saturate(0.55);
+                transform: scaleX(-1);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #3a2a2a; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #aa6858;
+                  letter-spacing: 1px;
+                "
+                >user_4</span
+              >
+            </div>
+          </div>
+
+          <!-- R3 -->
+          <div
+            style="
+              position: absolute;
+              left: 560px;
+              top: 238px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 6px;
+              animation: floatB 3.3s ease-in-out infinite;
+              opacity: 0.85;
+            "
+          >
+            <img
+              src="clawd.png"
+              alt=""
+              style="
+                width: 52px;
+                height: auto;
+                image-rendering: pixelated;
+                filter: hue-rotate(160deg) saturate(0.6);
+                transform: scaleX(-1);
+              "
+            />
+            <div style="background: #1a1a1a; border: 2px solid #2a3530; padding: 2px 6px">
+              <span
+                style="
+                  font-family: &quot;VT323&quot;, monospace;
+                  font-size: 13px;
+                  color: #5a9080;
+                  letter-spacing: 1px;
+                "
+                >user_6</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- DECORATIVE 4-LINE STRIPE -->
+    <div
+      style="
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        width: 100%;
+        z-index: 90;
+        margin-top: auto;
+      "
+    >
+      <div style="height: 3px; background: #3a5a8a"></div>
+      <div style="height: 3px; background: #3a6a32"></div>
+      <div style="height: 3px; background: #a87820"></div>
+      <div style="height: 3px; background: #c04a22"></div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer
+      style="
+        border-top: 2px solid #1e1e1e;
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #08080c;
+        z-index: 80;
+        font-size: 18px;
+      "
+    >
+      <div style="display: flex; align-items: center; gap: 10px">
+        <img
+          src="ccshare.png"
+          alt="CCShare"
+          style="height: 24px; width: auto; image-rendering: pixelated; opacity: 0.45"
+        />
+        <span style="opacity: 0.4; letter-spacing: 1px">ccshare Arcade Cabinet © 2026</span>
+      </div>
+      <div style="display: flex; gap: 22px">
+        <span style="opacity: 0.4">INSERT COIN TO LOAD SECRETS</span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+---
+interface Props {
+  githubUrl?: string;
+  linkedinUrl?: string;
+}
+
+const { githubUrl = "https://github.com/hexxt-git/ccshare", linkedinUrl = "#" } = Astro.props;
+---
+
+<header
+  class="bg-retro-bg z-50 flex h-[60px] items-center justify-between border-b-2 border-[#1e1e1e] px-8 max-[640px]:px-4"
+>
+  <div class="flex items-center gap-2">
+    <img
+      src="/ccshare.png"
+      alt="CCShare"
+      class="h-9 w-auto -translate-y-px [image-rendering:pixelated]"
+    />
+    <span class="font-press select-none text-[16px] uppercase tracking-[-1px]">
+      <span class="text-retro-orange">cc</span><span class="text-retro-fg">share</span>
+    </span>
+  </div>
+  <nav class="font-vt text-retro-nav flex items-center gap-6 lg:gap-12">
+    <a
+      href={githubUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="text-retro-fg flex items-center gap-2 no-underline opacity-60 transition-opacity hover:opacity-100"
+    >
+      <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
+        <path
+          d="M2,2h2v1h-2z M10,2h2v1h-2z M2,3h10v1h-10z M1,4h12v1h-12z M1,5h12v4h-12z M2,9h10v1h-10z M3,10h8v1h-8z M4,11h6v1h-6z M3,12h8v1h-8z M2,13h3v1h-3z M6,13h2v1h-2z M9,13h3v1h-3z M1,14h3v1h-3z M6,14h2v1h-2z M10,14h3v1h-3z"
+        ></path>
+      </svg>
+      github
+    </a>
+    <a
+      href={linkedinUrl}
+      class="text-retro-fg flex items-center gap-2 no-underline opacity-60 transition-opacity hover:opacity-100"
+    >
+      <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
+        <rect width="16" height="16" fill="currentColor"></rect>
+        <path
+          d="M3,2h2v2h-2z M3,6h2v6h-2z M7,6h2v6h-2z M11,6h2v6h-2z M7,4h6v2h-6z"
+          fill="var(--color-retro-bg, #0c0c0c)"></path>
+      </svg>
+      linkedin
+    </a>
+  </nav>
+</header>

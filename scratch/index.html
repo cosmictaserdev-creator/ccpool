@@ -1,0 +1,768 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ccshare</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0;
+        }
+      }
+      @keyframes floatA {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+      @keyframes floatB {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-7px);
+        }
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0a0a0a;
+        font-family: "VT323", monospace;
+        color: #f0e8c8;
+      }
+      ::selection {
+        background: #e8632a;
+        color: #0a0a0a;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        background: #0a0a0a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #2a2a2a;
+      }
+
+      a {
+        transition: none;
+      }
+      nav a:hover {
+        opacity: 1 !important;
+      }
+      .btn-primary:hover {
+        box-shadow: 2px 2px 0 #a03010 !important;
+        transform: translate(2px, 2px);
+      }
+      .btn-outline:hover {
+        box-shadow: 2px 2px 0 #333 !important;
+        transform: translate(2px, 2px);
+      }
+      footer a:hover {
+        opacity: 0.85 !important;
+      }
+
+      /* Layout Switcher */
+      .switcher-btn {
+        color: #f0e8c8;
+        background: #1a1a1a;
+        border: 2px solid #2a2a2a;
+        padding: 2px 10px;
+        text-decoration: none;
+        font-size: 16px;
+      }
+      .switcher-btn:hover {
+        background: #2a2a2a;
+        border-color: #444;
+      }
+      .switcher-btn.active {
+        color: #0a0a0a;
+        background: #e8632a;
+        border-color: #a03010;
+        box-shadow: 2px 2px 0 #a03010;
+      }
+    </style>
+  </head>
+  <body style="background: #0a0a0a; min-height: 100vh; overflow-x: hidden">
+    <!-- LAYOUT SWITCHER BANNER -->
+    <div
+      style="
+        background: #121212;
+        border-bottom: 2px solid #222;
+        padding: 8px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        z-index: 100;
+        position: relative;
+        font-family: &quot;VT323&quot;, monospace;
+        font-size: 18px;
+      "
+    >
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span
+          style="color: #e8632a; font-family: &quot;Press Start 2P&quot;, monospace; font-size: 8px"
+          >ccshare</span
+        >
+        <span style="color: #444">|</span>
+        <span style="color: #888">Layout Switcher:</span>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+        <a href="index.html" class="switcher-btn active">Original Landing</a>
+        <a href="variants.html" class="switcher-btn">Hero Variants</a>
+        <a href="arcade-variants.html" class="switcher-btn">Arcade Variants</a>
+        <a href="dashboard.html" class="switcher-btn">OS Dashboard</a>
+        <a href="terminal.html" class="switcher-btn">Interactive CLI</a>
+        <a href="arcade.html" class="switcher-btn">Arcade Split</a>
+        <a href="grid.html" class="switcher-btn">Retro Grid</a>
+      </div>
+    </div>
+
+    <!-- HEADER -->
+    <header
+      style="
+        border-bottom: 2px solid #1e1e1e;
+        padding: 0 40px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        background: #0a0a0a;
+        z-index: 50;
+      "
+    >
+      <div style="display: flex; align-items: center; gap: 12px">
+        <img
+          src="ccshare.png"
+          alt="CCShare"
+          style="height: 36px; width: auto; image-rendering: pixelated"
+        />
+        <span
+          style="
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            font-size: 10px;
+            letter-spacing: -0.5px;
+          "
+        >
+          <span style="color: #e8632a">cc</span><span style="color: #f0e8c8">share</span>
+        </span>
+      </div>
+      <nav style="display: flex; gap: 28px; align-items: center">
+        <a
+          href="#"
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 22px;
+            color: #f0e8c8;
+            text-decoration: none;
+            opacity: 0.6;
+          "
+          >docs</a
+        >
+        <a
+          href="#"
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 22px;
+            color: #f0e8c8;
+            text-decoration: none;
+            opacity: 0.6;
+          "
+          >github</a
+        >
+        <a
+          href="#install"
+          class="btn-primary"
+          style="
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            font-size: 8px;
+            color: #0a0a0a;
+            background: #e8632a;
+            padding: 8px 14px;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #a03010;
+          "
+          >install</a
+        >
+      </nav>
+    </header>
+
+    <!-- HERO -->
+    <main>
+      <section
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 56px 32px 64px;
+          position: relative;
+          min-height: calc(100vh - 56px - 80px);
+        "
+      >
+        <!-- CENTER CONTENT -->
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            max-width: 520px;
+            position: relative;
+            z-index: 1;
+          "
+        >
+          <!-- TITLE -->
+          <h1
+            style="
+              font-family: &quot;Press Start 2P&quot;, monospace;
+              font-size: 28px;
+              letter-spacing: -1px;
+              line-height: 1.5;
+              margin-bottom: 4px;
+            "
+          >
+            <span style="color: #e8632a">cc</span><span style="color: #f0e8c8">share</span>
+          </h1>
+          <p
+            style="
+              font-family: &quot;VT323&quot;, monospace;
+              font-size: 22px;
+              color: #f0e8c8;
+              opacity: 0.5;
+              letter-spacing: 3px;
+              margin-bottom: 28px;
+            "
+          >
+            v1.0.0
+          </p>
+
+          <!-- DESKTOP MOCKUP + USERS -->
+          <div
+            style="
+              position: relative;
+              width: 640px;
+              height: 340px;
+              margin-bottom: 28px;
+              flex-shrink: 0;
+              overflow: visible;
+            "
+          >
+            <!-- MONITOR -->
+            <div style="position: absolute; left: 180px; top: 40px; width: 280px">
+              <img
+                src="desktop.png"
+                alt="monitor"
+                style="width: 100%; image-rendering: pixelated; display: block"
+              />
+              <div
+                style="
+                  position: absolute;
+                  top: 63px;
+                  left: 58px;
+                  width: 40%;
+                  height: 40%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  overflow: hidden;
+                "
+              >
+                <img
+                  src="claude.png"
+                  alt="Claude"
+                  style="
+                    width: 100%;
+                    height: auto;
+                    image-rendering: pixelated;
+                    animation: spin 12s linear infinite;
+                  "
+                />
+              </div>
+            </div>
+
+            <!-- L1 -->
+            <div
+              style="
+                position: absolute;
+                left: 24px;
+                top: 14px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatA 3.4s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(200deg) saturate(0.65);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #2a2e3a; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #6878aa;
+                    letter-spacing: 1px;
+                  "
+                  >user_1</span
+                >
+              </div>
+            </div>
+
+            <!-- L2 -->
+            <div
+              style="
+                position: absolute;
+                left: -4px;
+                top: 120px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatB 4.1s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(270deg) saturate(0.6);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #2e2a3a; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #8868aa;
+                    letter-spacing: 1px;
+                  "
+                  >user_3</span
+                >
+              </div>
+            </div>
+
+            <!-- L3 -->
+            <div
+              style="
+                position: absolute;
+                left: 18px;
+                top: 238px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatA 4.6s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(40deg) saturate(0.6);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #3a3020; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #aa9050;
+                    letter-spacing: 1px;
+                  "
+                  >user_5</span
+                >
+              </div>
+            </div>
+
+            <!-- R1 -->
+            <div
+              style="
+                position: absolute;
+                left: 556px;
+                top: 8px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatB 2.9s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(100deg) saturate(0.6);
+                  transform: scaleX(-1);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #2a3a2a; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #5a8a4a;
+                    letter-spacing: 1px;
+                  "
+                  >user_2</span
+                >
+              </div>
+            </div>
+
+            <!-- R2 -->
+            <div
+              style="
+                position: absolute;
+                left: 578px;
+                top: 120px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatA 3.7s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(340deg) saturate(0.55);
+                  transform: scaleX(-1);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #3a2a2a; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #aa6858;
+                    letter-spacing: 1px;
+                  "
+                  >user_4</span
+                >
+              </div>
+            </div>
+
+            <!-- R3 -->
+            <div
+              style="
+                position: absolute;
+                left: 560px;
+                top: 238px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                animation: floatB 3.3s ease-in-out infinite;
+                opacity: 0.85;
+              "
+            >
+              <img
+                src="clawd.png"
+                alt=""
+                style="
+                  width: 52px;
+                  height: auto;
+                  image-rendering: pixelated;
+                  filter: hue-rotate(160deg) saturate(0.6);
+                  transform: scaleX(-1);
+                "
+              />
+              <div style="background: #1a1a1a; border: 2px solid #2a3530; padding: 2px 6px">
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 13px;
+                    color: #5a9080;
+                    letter-spacing: 1px;
+                  "
+                  >user_6</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- 4-LINE STRIPE -->
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 3px;
+              width: 100%;
+              margin-bottom: 24px;
+            "
+          >
+            <div style="height: 3px; background: #3a5a8a"></div>
+            <div style="height: 3px; background: #3a6a32"></div>
+            <div style="height: 3px; background: #a87820"></div>
+            <div style="height: 3px; background: #c04a22"></div>
+          </div>
+
+          <!-- TAGLINE -->
+          <p
+            style="
+              font-family: &quot;Press Start 2P&quot;, monospace;
+              font-size: 10px;
+              line-height: 2;
+              color: #f0e8c8;
+              margin-bottom: 8px;
+            "
+          >
+            share your claude subscription.
+          </p>
+          <p
+            style="
+              font-family: &quot;Press Start 2P&quot;, monospace;
+              font-size: 10px;
+              line-height: 2;
+              color: #e8632a;
+              margin-bottom: 24px;
+            "
+          >
+            fairly.
+          </p>
+
+          <!-- DESCRIPTION -->
+          <p
+            style="
+              font-family: &quot;VT323&quot;, monospace;
+              font-size: 24px;
+              color: #f0e8c8;
+              opacity: 0.65;
+              max-width: 440px;
+              line-height: 1.5;
+              margin-bottom: 36px;
+              letter-spacing: 0.3px;
+            "
+          >
+            one claude max plan, many teammates — ccshare rotates tokens fairly so everyone codes
+            equally.
+          </p>
+
+          <!-- TERMINAL BLOCK -->
+          <div id="install" style="width: 100%; max-width: 480px; margin-bottom: 28px">
+            <div style="background: #0f0f0f; border: 2px solid #2a2a2a">
+              <div
+                style="
+                  background: #181818;
+                  border-bottom: 2px solid #2a2a2a;
+                  padding: 6px 12px;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                "
+              >
+                <span
+                  style="width: 8px; height: 8px; background: #d4604a; display: inline-block"
+                ></span>
+                <span
+                  style="width: 8px; height: 8px; background: #d4a030; display: inline-block"
+                ></span>
+                <span
+                  style="width: 8px; height: 8px; background: #5a8f4a; display: inline-block"
+                ></span>
+                <span
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 15px;
+                    color: #444;
+                    margin-left: 6px;
+                  "
+                  >terminal</span
+                >
+              </div>
+              <div style="padding: 18px 20px; text-align: left">
+                <p
+                  style="
+                    font-family: &quot;VT323&quot;, monospace;
+                    font-size: 22px;
+                    color: #aaa;
+                    margin-bottom: 6px;
+                  "
+                >
+                  <span style="color: #e8632a">$</span> npm install -g ccshare
+                </p>
+                <p
+                  style="font-family: &quot;VT323&quot;, monospace; font-size: 22px; color: #5a8f4a"
+                >
+                  <span style="color: #e8632a">$</span> ccshare start<span
+                    style="animation: blink 1s step-end infinite; color: #f0e8c8"
+                    >▋</span
+                  >
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- CTA BUTTONS -->
+          <div style="display: flex; gap: 14px; flex-wrap: wrap; justify-content: center">
+            <a
+              href="#"
+              class="btn-primary"
+              style="
+                font-family: &quot;Press Start 2P&quot;, monospace;
+                font-size: 8px;
+                color: #0a0a0a;
+                background: #e8632a;
+                padding: 13px 22px;
+                text-decoration: none;
+                box-shadow: 4px 4px 0 #a03010;
+                letter-spacing: 1px;
+              "
+              >get started →</a
+            >
+            <a
+              href="#"
+              class="btn-outline"
+              style="
+                font-family: &quot;Press Start 2P&quot;, monospace;
+                font-size: 8px;
+                color: #f0e8c8;
+                background: transparent;
+                border: 2px solid #444;
+                padding: 13px 22px;
+                text-decoration: none;
+                box-shadow: 4px 4px 0 #333;
+                letter-spacing: 1px;
+              "
+              >view docs</a
+            >
+          </div>
+        </div>
+
+        <!-- SCANLINES -->
+        <div
+          style="
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            background: repeating-linear-gradient(
+              0deg,
+              transparent,
+              transparent 2px,
+              rgba(0, 0, 0, 0.07) 2px,
+              rgba(0, 0, 0, 0.07) 4px
+            );
+          "
+        ></div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer
+      style="
+        border-top: 2px solid #1e1e1e;
+        padding: 24px 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+      "
+    >
+      <div style="display: flex; align-items: center; gap: 10px">
+        <img
+          src="ccshare.png"
+          alt="CCShare"
+          style="height: 26px; width: auto; image-rendering: pixelated; opacity: 0.45"
+        />
+        <span
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 18px;
+            opacity: 0.4;
+            letter-spacing: 1px;
+          "
+          >ccshare © 2026</span
+        >
+      </div>
+      <div style="display: flex; gap: 22px">
+        <a
+          href="#"
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 18px;
+            color: #f0e8c8;
+            text-decoration: none;
+            opacity: 0.35;
+          "
+          >github</a
+        >
+        <a
+          href="#"
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 18px;
+            color: #f0e8c8;
+            text-decoration: none;
+            opacity: 0.35;
+          "
+          >docs</a
+        >
+        <a
+          href="#"
+          style="
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 18px;
+            color: #f0e8c8;
+            text-decoration: none;
+            opacity: 0.35;
+          "
+          >license</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

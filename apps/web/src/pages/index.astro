@@ -1,74 +1,184 @@
 ---
 import "../styles/global.css";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import Button from "../components/Button.astro";
+import Clawd from "../components/Clawd.astro";
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ccshare</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family: "IBM Plex Mono", ui-monospace, monospace;
-        background: #fff;
-        color: #000;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-    </style>
   </head>
-  <body>
-    <main class="mx-auto flex max-w-2xl flex-1 flex-col justify-center px-8 py-24">
-      <div class="border border-black p-8">
-        <div class="mb-6 text-xs uppercase tracking-widest text-neutral-500">▸ ccshare v0.1</div>
+  <body class="font-vt bg-retro-bg text-retro-fg flex min-h-screen flex-col overflow-x-hidden">
+    <Header />
 
-        <h1 class="mb-4 text-3xl font-semibold leading-snug tracking-tight">
-          Fair Claude<br />subscription sharing.
-        </h1>
+    <!-- ARCADE CABINET WORKSPACE -->
+    <main
+      class="mx-auto flex w-full max-w-[1200px] flex-1 flex-col justify-center gap-12 p-10 max-[640px]:px-4 max-[640px]:py-8"
+    >
+      <!-- TOP ROW: HERO INTRODUCTION & VISUALIZATION -->
+      <div
+        class="grid w-full grid-cols-[1.1fr_1fr] items-center gap-10 max-[950px]:grid-cols-1 max-[950px]:gap-[30px]"
+      >
+        <!-- HERO TEXT & BUTTONS -->
+        <div class="flex flex-col gap-7">
+          <div>
+            <h1
+              class="font-press text-retro-h1 text-retro-fg mb-[14px] leading-[1.4] tracking-[-1px]"
+            >
+              COOPERATIVE <br /><span class="text-retro-orange">SUBSCRIPTION SHARING</span>
+            </h1>
+            <p class="font-vt text-retro-body mt-3 leading-[1.4] text-[#ccc]">
+              ccshare is a CLI tool that allows team members sharing the same Claude subscription to
+              more fairly distribute prompt allocations across both 5-hour and weekly usage windows.
+            </p>
+          </div>
 
-        <div class="my-6 border-t border-black"></div>
+          <!-- PLAY BUTTONS -->
+          <div class="mt-2 flex flex-wrap gap-4">
+            <Button variant="primary" href="#">START SESSION</Button>
+            <Button variant="outline" href="#">WATCH TUTORIAL</Button>
+          </div>
+        </div>
 
-        <p class="mb-4 text-sm leading-relaxed text-neutral-700">
-          ccshare is a CLI tool for teams sharing a single Claude subscription. It tracks usage
-          across both 5-hour rolling windows and weekly limits, so everyone gets a fair slice —
-          automatically.
-        </p>
-
-        <p class="mb-8 text-sm leading-relaxed text-neutral-700">
-          No more one person burning through the quota. No spreadsheets. Just a command that tells
-          you when it's your turn.
-        </p>
-
-        <div class="flex flex-wrap gap-4">
-          <a
-            href="/docs/introduction"
-            class="border border-black px-4 py-2 text-xs uppercase tracking-widest transition-colors hover:bg-black hover:text-white"
+        <!-- VISUALIZATION -->
+        <div
+          class="relative flex h-[340px] w-full items-center justify-center overflow-visible max-[640px]:h-[200px] max-[480px]:h-[170px]"
+        >
+          <div
+            class="relative h-[340px] w-[640px] shrink-0 origin-center scale-90 overflow-visible max-[640px]:scale-[0.55] max-[480px]:scale-[0.45] max-[380px]:scale-[0.4]"
           >
-            Read the docs →
-          </a>
-          <a
-            href="https://github.com/HEXXT/ccshare"
-            class="px-4 py-2 text-xs uppercase tracking-widest text-neutral-500 transition-colors hover:text-black"
-          >
-            GitHub ↗
-          </a>
+            <!-- MONITOR -->
+            <div class="absolute left-[180px] top-10 w-[280px]">
+              <img
+                src="/desktop.png"
+                alt="monitor"
+                class="block w-full [image-rendering:pixelated]"
+              />
+              <div
+                class="absolute left-[58px] top-[63px] flex h-[40%] w-[40%] items-center justify-center overflow-hidden"
+              >
+                <img
+                  src="/claude.png"
+                  alt="Claude"
+                  class="animate-spin-slow h-auto w-full opacity-80 [image-rendering:pixelated]"
+                />
+              </div>
+            </div>
+
+            <!-- L1 -->
+            <div
+              class="animate-float-a absolute left-[30px] top-[10px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-1)" class="w-[84px]" />
+              <span
+                class="font-vt text-retro-label text-retro-user-1 -translate-y-4 text-xl tracking-[1px]"
+                >user_1</span
+              >
+            </div>
+
+            <!-- L2 -->
+            <div
+              class="animate-float-b absolute left-[0px] top-[120px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-3)" class="w-[84px]" />
+              <span
+                class="font-vt text-retro-label text-retro-user-3 -translate-y-4 text-xl tracking-[1px]"
+                >user_3</span
+              >
+            </div>
+
+            <!-- L3 -->
+            <div
+              class="animate-float-a-slow absolute left-[30px] top-[230px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-5)" class="w-[84px]" />
+              <span
+                class="font-vt text-retro-label text-retro-user-5 -translate-y-4 text-xl tracking-[1px]"
+                >user_5</span
+              >
+            </div>
+
+            <!-- R1 -->
+            <div
+              class="animate-float-b-fast absolute left-[510px] top-[10px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-2)" class="w-[84px] -scale-x-100" />
+              <span
+                class="font-vt text-retro-label text-retro-user-2 -translate-y-4 text-xl tracking-[1px]"
+                >user_2</span
+              >
+            </div>
+
+            <!-- R2 -->
+            <div
+              class="animate-float-a-mid absolute left-[540px] top-[120px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-4)" class="w-[84px] -scale-x-100" />
+              <span
+                class="font-vt text-retro-label text-retro-user-4 -translate-y-4 text-xl tracking-[1px]"
+                >user_4</span
+              >
+            </div>
+
+            <!-- R3 -->
+            <div
+              class="animate-float-b-mid absolute left-[510px] top-[230px] flex w-[100px] flex-col items-center"
+            >
+              <Clawd color="var(--color-retro-user-6)" class="w-[84px] -scale-x-100" />
+              <span
+                class="font-vt text-retro-label text-retro-user-6 -translate-y-4 text-xl tracking-[1px]"
+                >user_6</span
+              >
+            </div>
+          </div>
         </div>
       </div>
 
-      <footer class="mt-8 text-center text-xs text-neutral-400">
-        ccshare — open source, MIT licensed
-      </footer>
+      <!-- BOTTOM ROW: 3 FEATURE CARDS -->
+      <div class="mt-5 grid w-full grid-cols-3 gap-5 max-[950px]:grid-cols-1 max-[950px]:gap-4">
+        <div class="border-retro-border bg-retro-card flex flex-col gap-2 border-2 px-5 py-4">
+          <h3
+            class="font-press text-retro-card-title text-retro-feat-1 leading-[1.4] tracking-[0.5px]"
+          >
+            1. 5-HOUR USAGE SMOOTHING
+          </h3>
+          <p class="text-retro-card-body leading-[1.35] text-[#999]">
+            Monitors active prompt volumes in rolling 5-hour slots. If a user exceeds their fair
+            share, ccshare automatically queues requests to guarantee equal access.
+          </p>
+        </div>
+
+        <div class="border-retro-border bg-retro-card flex flex-col gap-2 border-2 px-5 py-4">
+          <h3
+            class="font-press text-retro-card-title text-retro-feat-2 leading-[1.4] tracking-[0.5px]"
+          >
+            2. WEEKLY QUOTA CAPPING
+          </h3>
+          <p class="text-retro-card-body leading-[1.35] text-[#999]">
+            Tracks total tokens spent throughout the week, helping teams stay within boundaries and
+            avoid subscription suspensions or service lockouts.
+          </p>
+        </div>
+
+        <div class="border-retro-border bg-retro-card flex flex-col gap-2 border-2 px-5 py-4">
+          <h3
+            class="font-press text-retro-card-title text-retro-feat-3 leading-[1.4] tracking-[0.5px]"
+          >
+            3. TIERED CAPACITY PROXYING
+          </h3>
+          <p class="text-retro-card-body leading-[1.35] text-[#999]">
+            Optimizes throughput allocations depending on whether you share a Pro ($20/mo), Team
+            ($100/mo), or custom Enterprise ($200/mo) tier subscription.
+          </p>
+        </div>
+      </div>
     </main>
+
+    <Footer />
   </body>
 </html>

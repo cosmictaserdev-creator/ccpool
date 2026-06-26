@@ -1,0 +1,30 @@
+---
+interface Props {
+  className?: string;
+}
+
+const { className = "" } = Astro.props;
+---
+
+<div class:list={["z-[90] mb-4 mt-auto flex w-full flex-col gap-[3px]", className]}>
+  <div class="bg-retro-stripe-1 h-[3px]"></div>
+  <div class="bg-retro-stripe-2 h-[3px]"></div>
+  <div class="bg-retro-stripe-3 h-[3px]"></div>
+  <div class="bg-retro-stripe-4 h-[3px]"></div>
+</div>
+
+<footer
+  class="font-vt text-retro-footer z-[80] flex items-center justify-between border-t-2 border-[#1e1e1e] bg-[#08080c] px-8 py-4 max-[640px]:px-4 max-[480px]:flex-col max-[480px]:gap-2"
+>
+  <div class="flex items-center gap-[10px]">
+    <img
+      src="/ccshare.png"
+      alt="CCShare"
+      class="h-6 w-auto select-none [image-rendering:pixelated]"
+    />
+    <span class="select-none tracking-[1px] opacity-40">ccshare © 2026</span>
+  </div>
+  <div class="flex select-none gap-[22px]">
+    <span class="opacity-40">INSERT COIN TO LOAD SECRETS</span>
+  </div>
+</footer>

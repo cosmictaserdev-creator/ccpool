@@ -8,7 +8,7 @@ export default defineConfig({
     starlight({
       title: "ccshare",
       description: "Fair Claude subscription sharing across 5-hour and weekly usage windows.",
-      social: { github: "https://github.com/HEXXT/ccshare" },
+      social: { github: "https://github.com/hexxt-git/ccshare" },
       customCss: ["./src/styles/global.css"],
       sidebar: [
         {

@@ -1,0 +1,30 @@
+---
+interface Props {
+  variant?: "primary" | "outline";
+  href?: string;
+  class?: string;
+  [key: string]: any;
+}
+
+const { variant = "primary", href, class: className = "", ...attrs } = Astro.props;
+
+const baseClasses =
+  "font-press text-retro-btn cursor-pointer inline-block no-underline select-none transition-all duration-75";
+
+const variantClasses =
+  variant === "primary"
+    ? "text-[#0a0a0a] bg-retro-orange py-[10px] px-[16px] border-none shadow-[4px_4px_0_theme(colors.retro.orange-shadow)] hover:shadow-[2px_2px_0_theme(colors.retro.orange-shadow)] hover:translate-x-[2px] hover:translate-y-[2px] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+    : "text-retro-fg bg-transparent border-2 border-retro-outline py-[8px] px-[14px] shadow-[4px_4px_0_theme(colors.retro.outline-shadow)] hover:shadow-[2px_2px_0_theme(colors.retro.outline-shadow)] hover:translate-x-[2px] hover:translate-y-[2px] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none";
+---
+
+{
+  href ? (
+    <a href={href} class:list={[baseClasses, variantClasses, className]} {...attrs}>
+      <slot />
+    </a>
+  ) : (
+    <button class:list={[baseClasses, variantClasses, className]} {...attrs}>
+      <slot />
+    </button>
+  )
+}

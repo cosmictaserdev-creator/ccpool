@@ -120,13 +120,17 @@ const canonicalURL = Astro.site
               stripe.style.backgroundColor = defaultBg;
             }
 
-            const direction = htmlEl.getAttribute("data-direction") || "right";
+            const dir = htmlEl.getAttribute("data-direction") || "right";
 
-            let origin = "left";
-            if (direction === "right") origin = "right";
-
-            stripe.style.transformOrigin = origin;
-            stripe.style.transform = "scaleX(1)";
+            if (dir === "down" || dir === "up") {
+              stripe.style.transformOrigin = dir === "down" ? "bottom" : "top";
+              stripe.style.transform = "scaleY(1)";
+            } else {
+              let origin = "left";
+              if (dir === "right") origin = "right";
+              stripe.style.transformOrigin = origin;
+              stripe.style.transform = "scaleX(1)";
+            }
 
             overlay.appendChild(stripe);
             stripes.push(stripe);
@@ -134,18 +138,17 @@ const canonicalURL = Astro.site
 
           htmlEl.appendChild(overlay);
 
+          const dir = htmlEl.getAttribute("data-direction") || "right";
+          const isVertical = dir === "down" || dir === "up";
+
           inView(
             htmlEl,
             () => {
-              animate(
-                stripes,
-                { scaleX: 0 },
-                {
-                  delay: stagger(0.15, { startDelay: delay }),
-                  duration: 0.46,
-                  ease: "circOut",
-                }
-              );
+              animate(stripes, isVertical ? { scaleY: 0 } : { scaleX: 0 }, {
+                delay: stagger(0.15, { startDelay: delay }),
+                duration: 0.46,
+                ease: "circOut",
+              });
             },
             { amount: 0.1 }
           );
@@ -235,10 +238,8 @@ const canonicalURL = Astro.site
         }
       };
 
-      // Run on initial load
-      initReveals();
-
-      // If using Astro view transitions in the future, it handles re-runs
+      // astro:page-load fires on initial load AND on view transitions,
+      // so a single listener covers both cases without double-firing.
       document.addEventListener("astro:page-load", initReveals);
     </script>
   </body>

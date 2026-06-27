@@ -4,7 +4,7 @@ import Button from "../components/Button.astro";
 import Visualization from "../components/Visualization.astro";
 ---
 
-<Layout title="ccshare">
+<Layout>
   <!-- ARCADE CABINET WORKSPACE -->
   <main
     class="mx-auto flex w-full max-w-[1200px] flex-1 flex-col justify-center gap-12 p-10 max-[640px]:px-4 max-[640px]:py-8"
@@ -17,12 +17,13 @@ import Visualization from "../components/Visualization.astro";
       <div class="flex flex-col gap-7">
         <div>
           <h1
-            class="retro-reveal font-press text-retro-h1 text-retro-fg mb-[14px] leading-[1.4] tracking-[-1px]"
+            class="retro-reveal font-press sm:text-retro-h1 text-retro-fg mb-[14px] whitespace-nowrap text-[calc(8.5vw-4px)] leading-[1.4] tracking-[-1px]"
             data-stripes="4"
             data-color="stripes"
             data-delay="0.1"
           >
-            CLAUDE SUBSCRIPTION <br /><span class="text-retro-orange">FAIR SHARING</span>
+            STOP HOGGING <br />
+            THE <span class="text-retro-orange">TOKENS</span>
           </h1>
           <p
             class="retro-reveal font-vt text-retro-body mt-3 w-fit leading-[1.1] text-[#ccc]"
@@ -30,8 +31,8 @@ import Visualization from "../components/Visualization.astro";
             data-color="bg"
             data-delay="0.4"
           >
-            ccshare is a CLI tool for claude code subscription sharing with fair usage limits for
-            teams.
+            ccshare is a cli tool that allows people sharing the same claude subscription to more
+            fairly split usage on both 5-hour and weekly windows.
           </p>
         </div>
 
@@ -49,7 +50,7 @@ import Visualization from "../components/Visualization.astro";
               variant="primary"
               href="/docs"
               class="max-[640px]:block max-[640px]:w-full max-[640px]:text-center"
-              >GET STARTED</Button
+              >QUICK START</Button
             >
           </div>
           <div
@@ -77,61 +78,44 @@ import Visualization from "../components/Visualization.astro";
       <ul class="grid w-full grid-cols-3 gap-5 max-[950px]:grid-cols-1 max-[950px]:gap-4">
         <li>
           <article
-            class="retro-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4"
-            data-stripes="6"
-            data-color="bg"
-            data-direction="right"
-            data-delay="0.2"
+            class="feature-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4 opacity-0"
           >
-            <h2
-              class="font-press text-retro-card-title text-retro-orange leading-[1.4] tracking-[0.5px]"
-            >
-              1. 5-HOUR USAGE SMOOTHING
+            <h2 class="font-press text-retro-card-title text-retro-orange leading-[1.4]">
+              EVERYONE GETS A FAIR SLICE
             </h2>
             <p class="text-retro-card-body leading-[1.05] text-[#999]">
-              Monitors active prompt volumes in rolling 5-hour slots. If a user exceeds their fair
-              share, ccshare automatically queues requests to guarantee equal access.
+              You don't need to manually coordinate who gets to prompt next. Simply use Claude as
+              you normally would, and ccshare automatically paces the team's requests.
             </p>
           </article>
         </li>
 
         <li>
           <article
-            class="retro-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4"
-            data-stripes="6"
-            data-color="bg"
-            data-direction="left"
-            data-delay="0.4"
+            class="feature-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4 opacity-0"
           >
-            <h2
-              class="font-press text-retro-card-title text-retro-yellow leading-[1.4] tracking-[0.5px]"
-            >
-              2. WEEKLY QUOTA CAPPING
+            <h2 class="font-press text-retro-card-title text-retro-yellow leading-[1.4]">
+              USAGE GETS MAXIMIZED
             </h2>
             <p class="text-retro-card-body leading-[1.05] text-[#999]">
-              Tracks total tokens spent throughout the week, helping teams stay within boundaries
-              and avoid subscription suspensions or service lockouts.
+              in the case one or more team members are completely inactive. their usage gets split
+              1-hour before the window closes
             </p>
           </article>
         </li>
 
         <li>
           <article
-            class="retro-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4"
-            data-stripes="6"
-            data-color="bg"
-            data-direction="right"
-            data-delay="0.6"
+            class="feature-reveal border-retro-border bg-retro-card flex h-full flex-col gap-2 border-2 px-5 py-4 opacity-0"
           >
-            <h2
-              class="font-press text-retro-card-title text-retro-green leading-[1.4] tracking-[0.5px]"
-            >
-              3. TIERED CAPACITY PROXYING
+            <h2 class="font-press text-retro-card-title text-retro-green leading-[1.4]">
+              SIMPLE CLI
             </h2>
-            <p class="text-retro-card-body leading-[1.05] text-[#999]">
-              Optimizes throughput allocations depending on whether you share a Pro ($20/mo), Team
-              ($100/mo), or custom Enterprise ($200/mo) tier subscription.
-            </p>
+            <ul class="text-retro-card-body list-disc leading-[1.05] text-[#999] [&>li]:ms-4">
+              <li>get it up in 5 minutes and never have to worry about it</li>
+              <li>coordinated through any cloud database or server</li>
+              <li>view detailed weekly/daily reports with cost estimate metrics</li>
+            </ul>
           </article>
         </li>
       </ul>

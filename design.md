@@ -1,78 +1,90 @@
-# CCSHARE - Retro Website Design Specification
+# CCSHARE - Retro Website Design & Animation Specification
 
-Based on the provided mockup, this document outlines the design specifications for the "CCSHARE" website.
+Based on the provided mockup and subsequent developments, this document outlines the comprehensive design specifications and the custom animation language for the "CCSHARE" website.
 
 ## 1. Overall Theme & Aesthetics
 
 - **Style:** Retro, 8-bit / pixel art, terminal/CLI arcade aesthetic.
-- **Vibe:** Nostalgic, technical, developer-focused.
+- **Vibe:** Nostalgic, technical, developer-focused, dynamic and alive.
 
 ## 2. Color Palette
 
-- **Background:** Dark gray/almost black (e.g., `#111111` or `#0a0a0a`)
-- **Primary Text:** White / Off-white (e.g., `#f0f0f0` or `#e0e0e0`)
-- **Secondary Text (Footer, Subdued text):** Gray (e.g., `#888888`)
+- **Background:** Dark gray/almost black (`#0c0c0c` / `var(--color-retro-bg)`)
+- **Primary Text:** White / Off-white (`#e2e8f0` / `var(--color-retro-fg)`)
+- **Secondary Text (Footer, Subdued text):** Gray (`#888888`)
 - **Accents:**
-  - **Orange:** (e.g., `#FF6B00`) - Used for primary buttons, highlighted headings ("FAIR SHARING", Feature 1 & 2 headings).
-  - **Green:** (e.g., `#00FF00` or `#4ade80`) - Used for the logo text ("CCSHARE"), Feature 3 heading.
-  - **Other Sprite/Line Colors:** Blue, Green, Pink, Orange, Yellow, Purple (used for the user avatar sprites and the footer decorative lines).
+  - **Orange:** (`#FF6B00`) - Used for primary buttons, highlighted headings ("FAIR SHARING", Feature 1).
+  - **Green:** (`#4ade80`) - Used for the logo text ("CCSHARE"), Feature 3.
+  - **Yellow:** Feature 2.
+  - **Animation Palette:** A vibrant 4-color palette (`#FF6B00`, `#4ade80`, `#3b82f6`, `#a855f7`) used dynamically in reveal animations.
 
 ## 3. Typography
 
-- **Font Family:** A pixel or bitmap-style font is used universally across the site for headings, body text, buttons, and links.
-- **Suggested Fonts:** `VT323`, `Press Start 2P`, `Silkscreen`, or `Pixelify Sans` from Google Fonts.
+- **Font Family:** Strictly pixel/bitmap-style fonts across the site.
+- **Heading Font:** `Press Start 2P` (`font-press`) for H1, buttons, and card titles.
+- **Body Font:** `VT323` (`font-vt`) for paragraphs, nav links, and secondary text.
 - **Hierarchy:**
-  - **H1 (Hero):** Large, all-caps, chunky pixel font.
-  - **H2/H3 (Features):** Medium size, colored, all-caps.
-  - **Body Text:** Smaller, but still monospaced/pixelated, ensuring readability while maintaining the theme.
+  - **H1 (Hero):** Large, all-caps, chunky pixel font with tight negative tracking (`-1px`).
+  - **H2 (Features):** Medium size, colored, all-caps.
+  - **Body Text:** Smaller, monospaced/pixelated, ensuring readability while maintaining the theme.
 
-## 4. Layout Structure
+## 4. Animation Language & Choreography
 
-### 4.1. Header (Navbar)
+The website utilizes a bespoke animation system powered by Motion (formerly Framer Motion), designed to evoke CRT screens loading data, interlaced video, and retro arcade sequences.
 
-- **Left:** Logo consists of a pixel-art computer/alien sprite next to the text "CCSHARE" in green.
-- **Right:** Navigation links with accompanying small pixel-art icons:
-  - `[Doc Icon] docs`
-  - `[GitHub Icon] github`
-  - `[LinkedIn Icon] linkedin`
-- **Border:** A subtle dark gray bottom border separates the header from the main content.
+### 4.1. "Retro Reveal" Striping Effect
 
-### 4.2. Hero Section
+A custom text and element reveal animation applied universally via the `.retro-reveal` class.
 
-- **Split Layout:**
-  - **Left Column (Content):**
-    - **Headline:** "CLAUDE SUBSCRIPTION" (White) / "FAIR SHARING" (Orange).
-    - **Subheadline:** "ccshare is a CLI tool for claude code subscription sharing with fair usage limits for teams."
-    - **Call to Action (CTA) Buttons:**
-      - **Primary (`GET STARTED`):** Orange background, black text, styled with a solid dark border/shadow to look like a chunky 3D retro button.
-      - **Secondary (`VIEW GITHUB`):** Transparent/dark background, white text, gray border/shadow, same 3D retro button style.
-  - **Right Column (Hero Graphic):**
-    - A central pixel-art graphic of a CRT monitor displaying an orange starburst/sparkle.
-    - Surrounded by 6 "Space Invaders" style alien/robot sprites representing users (`user_1` to `user_6`), each in a different color.
+- **Mechanism:** Solid colored blocks (stripes) overlay the target element and sequentially shrink to `scaleX(0)` using a `circOut` easing curve, revealing the content beneath.
+- **Customization:** Highly configurable via `data-` attributes:
+  - `data-stripes`: Number of horizontal slices (default: 4).
+  - `data-delay`: Initial delay before the sequence starts.
+  - `data-direction`: Direction of the wipe (`left`, `right`, or `alternate`).
+  - `data-color`: Can use the background color (`bg`) for a masking effect or the vibrant multi-color sequence (`stripes`).
 
-### 4.3. Features Section
+### 4.2. Hero Graphic Sequence
 
-- **Layout:** A 3-column grid of feature cards.
-- **Card Styling:** Dark gray/black background with a thin, lighter gray solid border. Inner padding for text.
-- **Card 1:**
-  - **Title:** "1. 5-HOUR USAGE SMOOTHING" (Orange)
-  - **Body:** Monitors active prompt volumes in rolling 5-hour slots. If a user exceeds their fair share, ccshare automatically queues requests to guarantee equal access.
-- **Card 2:**
-  - **Title:** "2. WEEKLY QUOTA CAPPING" (Yellow/Orange)
-  - **Body:** Tracks total tokens spent throughout the week, helping teams stay within boundaries and avoid subscription suspensions or service lockouts.
-- **Card 3:**
-  - **Title:** "3. TIERED CAPACITY PROXYING" (Green)
-  - **Body:** Optimizes throughput allocations depending on whether you share a Pro ($20/mo), Team ($100/mo), or custom Enterprise ($200/mo) tier subscription.
+A heavily choreographed, multi-stage loading sequence in the hero visualization:
 
-### 4.4. Footer
+1. **Monitor Boot:** The central CRT computer casing wipes into view.
+2. **Claude Initialization:** The Claude logo blinks into existence inside the monitor with a stuttering opacity sequence (`0 -> 1 -> 0 -> 1`).
+3. **Avatar Connections:** Six floating alien/robot avatars (`user_1` through `user_6`) sweep in sequentially in a specific staggered order (1, 3, 5, 2, 4, 6).
+4. **Data Transfer:** Exactly 1.3 seconds after an avatar reveals, a dotted path of 6x6 pixel blocks fires rapidly (50ms stagger per dot) from the avatar back to the central monitor, simulating an established network connection.
+5. **Continuous Idle:** Once loaded, avatars continuously float using offset CSS keyframe animations (`animate-float-a`, `animate-float-b`, etc.) to create organic, unsynchronized hovering movement.
 
-- **Decorative Divider:** A distinct set of 4 horizontal, colored, 1-pixel or 2-pixel tall lines stretching across the full width of the container just above the footer links (Colors: Blue, Green, Orange, Yellow/Red).
-- **Bottom Row layout:**
-  - **Left:** Logo icon + `ccshare © 2026` in gray text.
-  - **Right:** Footer links: `PRIVACY POLICY`, `TERMS OF USE`, `DMCA` in gray text.
+### 4.3. Sequential Footer Lines
 
-## 5. UI Components & Elements
+- The footer features 8 horizontal, colored, 2-pixel tall lines stretching across the full width of the container.
+- **Animation:** Triggered when scrolled `inView`, the lines grow from `width: 0%` to `100%`.
+- **Interlaced Stagger:** Odd-numbered lines animate first, followed by even-numbered lines, creating an interlaced loading effect over 1.5 seconds per set.
 
-- **Buttons:** Boxy, no border-radius. They use a hard drop-shadow/border effect to simulate a physical, clicky arcade button.
-- **Icons:** All icons (social links, feature graphics) are strictly pixel art.
-- **Borders:** Hard, 1px or 2px solid lines. No rounded corners (`border-radius: 0` everywhere).
+## 5. Layout Structure
+
+### 5.1. Header (Navbar)
+
+- **Left:** Pixel-art sprite logo with "CCSHARE" text.
+- **Right (Desktop):** Navigation links (Docs, GitHub, LinkedIn) with crisp SVG pixel-art icons.
+- **Right (Mobile):** A chunky SVG hamburger menu button that toggles a sliding, absolute-positioned dropdown (`max-h-0` to `max-h-[300px]`) containing the navigation links.
+- **Behavior:** `sticky top-0 z-50` to persist seamlessly during scrolling.
+
+### 5.2. Hero Section
+
+- **Split Layout:** Content on the left (H1, description, staggered CTA buttons), Graphic Sequence on the right.
+- **Call to Action Buttons:** Feature heavy 3D pixel shadows that compress on click.
+
+### 5.3. Features Section
+
+- A responsive 3-column grid (`grid-cols-3` to `grid-cols-1` on mobile).
+- Cards utilize the `retro-reveal` effect with background masking and alternating directions to create a cascading, technical entry.
+- Hard, solid borders and dark backgrounds.
+
+### 5.4. Footer
+
+- **Bottom Row:** Centered copyright and legal links (`PRIVACY POLICY`, `TERMS OF USE`, `DMCA`), sitting cleanly below the animated interlaced lines.
+
+## 6. UI Components & Elements
+
+- **Buttons:** Boxy, zero border-radius. They use hard drop-shadows (e.g., `4px 4px 0`) that reduce to `0px 0px 0` combined with translate transforms on `:active` to simulate a physical, clicky arcade machine button.
+- **Icons:** Strictly crisp, shape-rendered pixel art (`shape-rendering="crispEdges"` in SVG).
+- **Borders:** Hard, solid lines. `border-radius: 0` is strictly enforced everywhere.

@@ -18,7 +18,6 @@ const {
     class="retro-reveal flex items-center gap-2"
     data-stripes="3"
     data-color="bg"
-    data-direction="left"
     data-delay="0.1"
   >
     <img
@@ -36,7 +35,6 @@ const {
       class="retro-reveal text-retro-fg flex items-center gap-2 no-underline opacity-60 transition-opacity hover:opacity-100"
       data-stripes="2"
       data-color="bg"
-      data-direction="right"
       data-delay="0.2"
     >
       <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
@@ -55,7 +53,6 @@ const {
       class="retro-reveal text-retro-fg flex items-center gap-2 no-underline opacity-60 transition-opacity hover:opacity-100"
       data-stripes="2"
       data-color="bg"
-      data-direction="right"
       data-delay="0.3"
     >
       <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
@@ -71,7 +68,6 @@ const {
       class="retro-reveal text-retro-fg flex items-center gap-2 no-underline opacity-60 transition-opacity hover:opacity-100"
       data-stripes="2"
       data-color="bg"
-      data-direction="right"
       data-delay="0.4"
     >
       <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
@@ -157,14 +153,35 @@ const {
 </header>
 
 <script>
+  let initialized = false;
+
   document.addEventListener("astro:page-load", () => {
     const btn = document.getElementById("mobile-menu-btn");
     const menu = document.getElementById("mobile-menu");
 
     if (btn && menu) {
-      btn.addEventListener("click", () => {
+      if (!initialized) {
+        document.addEventListener("click", (e) => {
+          if (!menu.contains(e.target as Node) && !btn.contains(e.target as Node)) {
+            menu.classList.add("max-h-0");
+            menu.classList.remove("max-h-[300px]");
+          }
+        });
+        initialized = true;
+      }
+
+      btn.onclick = (e) => {
+        e.stopPropagation();
         menu.classList.toggle("max-h-0");
         menu.classList.toggle("max-h-[300px]");
+      };
+
+      const links = menu.querySelectorAll("a");
+      links.forEach((link) => {
+        link.onclick = () => {
+          menu.classList.add("max-h-0");
+          menu.classList.remove("max-h-[300px]");
+        };
       });
     }
   });

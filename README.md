@@ -15,7 +15,7 @@
 
 ## 💡 What is it?
 
-`ccshare` solves the common problem of shared AI subscription accounts where one user might unintentionally burn through the hourly or daily message limits, leaving others stranded. It acts as a lightweight traffic controller, pacing requests and ensuring equitable access to your team's subscription. 
+`ccshare` solves the common problem of shared AI subscription accounts where one user might unintentionally burn through the hourly or daily message limits, leaving others stranded. It acts as a lightweight traffic controller, pacing requests and ensuring equitable access to your team's subscription.
 
 ## 👾 Key Features
 

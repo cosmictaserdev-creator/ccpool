@@ -1,13 +1,21 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
 
+@font-face {
+  font-family: "SerenityOS-Emoji";
+  src: url("/fonts/SerenityOS-Emoji.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @import "tailwindcss";
 
 @theme {
   /* Fonts */
-  --font-press: "Press Start 2P", monospace;
-  --font-vt: "VT323", monospace;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-press: "Press Start 2P", "SerenityOS-Emoji", monospace;
+  --font-vt: "VT323", "SerenityOS-Emoji", monospace;
+  --font-mono: "IBM Plex Mono", "SerenityOS-Emoji", ui-monospace, monospace;
 
   /* Keyframes */
   @keyframes blink {

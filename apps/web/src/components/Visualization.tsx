@@ -265,7 +265,7 @@ function ClawdUser({
     setTimeout(() => setShaking(false), 500);
     setTimeout(() => {
       cooldownRef.current = false;
-    }, 10000);
+    }, 2000);
   }, [shaking, connected]);
 
   const handleTap = useCallback(() => {

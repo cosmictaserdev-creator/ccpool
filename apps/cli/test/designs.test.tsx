@@ -48,7 +48,8 @@ describe("toDesignModel", () => {
     expect(alice.tokens).toBe(1_240_000);
     expect(alice.active).toBe(true); // 5h share 42 > 0
     expect(model.members.find((m) => m.name === "ben")!.active).toBe(false); // 5h share 0
-    expect(model.active).toBe(2); // alice + unknown (both have 5h > 0)
+    expect(model.members.find((m) => m.name === "unknown")!.active).toBe(false); // never active
+    expect(model.active).toBe(1); // only alice; unknown is never counted active
   });
 
   it("leaves a cap undefined for a member with no row (renders as —)", () => {

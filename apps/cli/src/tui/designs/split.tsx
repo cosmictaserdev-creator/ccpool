@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
+import { UNKNOWN_USER } from "@ccshare/core";
 import type { DesignModel } from "../../lib/design-model.js";
 import { P, personColor } from "./palette.js";
 import {
@@ -86,16 +87,21 @@ export function split(
           >
             {shown.map((u, i) => {
               const col = personColor(u, off + i);
+              const isUnknown = u.name === UNKNOWN_USER;
               return (
                 <Box key={u.name} flexDirection="column" marginTop={1}>
                   <Text>
                     <Text color={P.faint}>{pad("#" + (off + i + 1), 2)} </Text>
                     <Text color={col}>{pad(u.name + (u.isMe ? " ◂" : ""), 10)}</Text>
-                    <StatusDot active={u.active} />
-                    <Text color={P.dim}>
-                      {"   "}
-                      {lpad(tok(u.tokens), 6)} tok
-                    </Text>
+                    {!isUnknown && (
+                      <>
+                        <StatusDot active={u.active} />
+                        <Text color={P.dim}>
+                          {"   "}
+                          {lpad(tok(u.tokens), 6)} tok
+                        </Text>
+                      </>
+                    )}
                   </Text>
                   <Box marginLeft={1}>
                     <Clawd color={col} />

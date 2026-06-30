@@ -242,31 +242,69 @@ export function Header({
   color: string;
   pal: { label: string; value: string; accent: string };
 }): React.ReactElement {
+  const chip = (sep: boolean, body: React.ReactNode): React.ReactElement => (
+    <Box flexShrink={0} marginRight={1}>
+      <Text color={pal.label}>
+        {sep ? "· " : ""}
+        {body}
+      </Text>
+    </Box>
+  );
   return (
     <Box>
-      <Clawd color={color} />
-      <Box flexDirection="column" marginLeft={3}>
+      <Box flexShrink={0}>
+        <Clawd color={color} />
+      </Box>
+      <Box flexDirection="column" marginLeft={3} flexShrink={1} flexGrow={1}>
         <Text color={color} bold>
           ccshare
         </Text>
-        <Text color={pal.label}>
-          you are{" "}
-          <Text color={pal.value} bold>
-            {model.me}
-          </Text>{" "}
-          · {model.members.length} members ({model.active} active)
-        </Text>
-        <Text color={pal.label}>
-          account <Text color={pal.value}>{model.account}</Text>
-          {" · source "}
-          <Text color={pal.accent}>{model.sourceLabel}</Text>
-          {" · synced "}
-          <Text color={pal.value}>{model.sync}</Text>
-          {" · daemon "}
-          <Text color={model.daemonRunning ? pal.accent : P.faint}>
-            {model.daemonRunning ? "running" : "stopped"}
-          </Text>
-        </Text>
+        <Box flexWrap="wrap">
+          {chip(
+            false,
+            <>
+              you are{" "}
+              <Text color={pal.value} bold>
+                {model.me}
+              </Text>
+            </>
+          )}
+          {chip(
+            true,
+            <>
+              {model.members.length} members ({model.active} active)
+            </>
+          )}
+        </Box>
+        <Box flexWrap="wrap">
+          {chip(
+            false,
+            <>
+              account <Text color={pal.value}>{model.account}</Text>
+            </>
+          )}
+          {chip(
+            true,
+            <>
+              source <Text color={pal.accent}>{model.sourceLabel}</Text>
+            </>
+          )}
+          {chip(
+            true,
+            <>
+              synced <Text color={pal.value}>{model.sync}</Text>
+            </>
+          )}
+          {chip(
+            true,
+            <>
+              daemon{" "}
+              <Text color={model.daemonRunning ? pal.accent : P.faint}>
+                {model.daemonRunning ? "running" : "stopped"}
+              </Text>
+            </>
+          )}
+        </Box>
       </Box>
     </Box>
   );

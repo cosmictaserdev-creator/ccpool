@@ -90,8 +90,8 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
       isMe: name === me,
       byCap,
       tokens: stat?.tokens ?? 0,
-      // "active" = currently holding any of the 5h window
-      active: (byCap.five_hour ?? 0) > 0,
+      // "active" = currently holding any of the 5h window; unknown is never active
+      active: name !== UNKNOWN_USER && (byCap.five_hour ?? 0) > 0,
     };
   });
 

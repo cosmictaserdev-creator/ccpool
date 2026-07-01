@@ -81,8 +81,8 @@ clean-DB rules.
 `ccshare_meta` field — MUST ship as a numbered migration, never an ad-hoc schema
 edit.** For each such change:
 
-1. Bump `SCHEMA_VERSION` in `packages/core/src/storage/storage.ts` and document what
-   the new version adds (see the v2 note there).
+1. Bump `SCHEMA_VERSION` in `packages/core/src/storage/storage.ts` (v1 is the current
+   baseline — the full schema created up front) and document what the new version adds.
 2. Add the columns/tables to the fresh `initializeSchema` of **all three** adapters
    (memory, libSQL, Postgres).
 3. Extend `migrate(toVersion)` in each adapter to bring an older DB forward

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { runApp } from "./commands/app.js";
 import { runStatus } from "./commands/status.js";
 import { runTui } from "./commands/tui.js";
 import { runInit } from "./commands/init.js";
@@ -7,7 +8,6 @@ import { runDoctor } from "./commands/doctor.js";
 import { runConfigGet, runConfigSet } from "./commands/config.js";
 import { runStatusline } from "./commands/statusline.js";
 import { runUsers } from "./commands/users.js";
-import { runBudgetList, runBudgetSet } from "./commands/budget.js";
 import {
   runDaemonForeground,
   runDaemonRestart,
@@ -22,6 +22,13 @@ program
   .name("ccshare")
   .description("a shared, live picture of one Claude account's usage and who's using it")
   .version("0.0.1");
+
+// Bare `ccshare` opens the TUI: onboarding when unconfigured, the live view
+// otherwise (press `c` there to configure). The subcommands below remain as a
+// scriptable fallback for everything the TUI does interactively.
+program.action(async () => {
+  await runApp();
+});
 
 program
   .command("init")
@@ -103,20 +110,6 @@ program
   .description("list participants (names) in the shared database")
   .action(async () => {
     await runUsers();
-  });
-
-const budget = program.command("budget").description("optional fair-share targets");
-budget
-  .command("set <name> <cap> <pct>")
-  .description("set a name's target share of a window, e.g. `budget set sam weekly 33`")
-  .action(async (name: string, cap: string, pct: string) => {
-    await runBudgetSet(name, cap, pct);
-  });
-budget
-  .command("list")
-  .description("list configured budgets")
-  .action(async () => {
-    await runBudgetList();
   });
 
 const config = program.command("config").description("read or change local config");

@@ -18,7 +18,9 @@ export function overview(
   rows: number,
   off: number
 ): React.ReactElement {
-  const inner = cols - 2;
+  // `cols` is the drawable content width (the app applies its own paddingX), so
+  // fill it — the member table box spans the full width, no right-edge gap.
+  const inner = cols;
   const hasOpus = model.caps.some((c) => c.kind === "seven_day_opus");
   const fixed =
     COL.rank + COL.member + COL.weekly + (hasOpus ? COL.opus : 0) + COL.tokens + COL.status;
@@ -61,6 +63,7 @@ export function overview(
         </Text>
         <Text color={P.dim}>{scrollLabel(off, visible, model.members.length)}</Text>
       </Box>
+      {model.disconnected ? <Text color={P.red}>ERROR: can't reach the database</Text> : null}
       <Box
         width={inner}
         flexDirection="column"
@@ -112,7 +115,7 @@ export function overview(
           <Rule w={inner - 4} color={P.faint} />
         </Box>
         {shown.map((u, i) => (
-          <Box key={u.name} flexShrink={0}>
+          <Box key={off + i} flexShrink={0}>
             <Cell w={COL.rank}>
               <Text color={P.faint}>{off + i + 1}</Text>
             </Cell>

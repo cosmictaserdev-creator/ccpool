@@ -166,8 +166,8 @@ export async function runInit(opts: InitOptions = {}): Promise<void> {
             }
             await storage.migrate(SCHEMA_VERSION);
           }
-          // Claim an unbound ledger (pre-v2, or created before onboarding) for this
-          // account. No-op when already bound; only sets a null binding.
+          // Claim an unbound ledger (created before onboarding) for this account.
+          // No-op when already bound; only sets a null binding.
           if (inspection.accountId == null && localAccountId != null) {
             await storage.bindAccount(localAccountId);
           }

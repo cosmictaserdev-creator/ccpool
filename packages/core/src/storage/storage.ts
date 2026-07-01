@@ -1,5 +1,4 @@
 import type {
-  Budget,
   CapKind,
   DbInspection,
   MessageUsage,
@@ -10,15 +9,16 @@ import type {
 } from "../types.js";
 
 /**
- * The current schema version this CLI understands.
- * v2 added `ccshare_meta.accountId` — the Claude account the ledger is bound to,
- * so a daemon on a different account can be refused rather than silently mixing
- * two tanks into one `usage_samples` table.
- * v3 added the `usage_markers` table — daemon activity markers that let attribution
- * credit an otherwise-unexplained local tank rise (endpoint lag, resume re-prime)
- * to the machine's user instead of `unknown` (§7).
+ * The schema version this CLI understands. v1 is the single baseline: the whole
+ * schema — `ccshare_meta` (with the account-binding `accountId`), `users`,
+ * `usage_samples`, `message_usage`, `usage_markers`, `reset_events` — is created
+ * up front by `initializeSchema`, so there are no historical migration steps.
+ *
+ * When a future change needs one, bump this and add an additive, idempotent step
+ * to each adapter's `migrate` (nullable columns / `CREATE … IF NOT EXISTS`), per
+ * the migration rules in CLAUDE.md. `migrate` is retained for exactly that.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 1;
 
 /**
  * The one boundary that must stay strict: adapters are interchangeable behind
@@ -57,8 +57,4 @@ export interface Storage {
   recordUsageMarker(m: UsageMarker): Promise<void>;
   /** Activity markers since `since` — fill rises with no measured activity (§7). */
   getUsageMarkersSince(since: string): Promise<UsageMarker[]>;
-
-  // optional budgets, keyed by name
-  setBudget(name: string, cap: CapKind, sharePct: number): Promise<void>;
-  getBudgets(): Promise<Budget[]>;
 }

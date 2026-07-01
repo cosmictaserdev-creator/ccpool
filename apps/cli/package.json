@@ -9,7 +9,9 @@
     "dev": "tsx src/cli.tsx",
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "link": "npm link",
+    "unlink": "npm unlink -g @ccshare/cli"
   },
   "dependencies": {
     "@ccshare/core": "workspace:*",

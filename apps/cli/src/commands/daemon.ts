@@ -7,14 +7,63 @@ import {
   readPid,
   spawnDetached,
   startDaemon,
+  type DaemonPaths,
 } from "@ccshare/daemon";
-import type { LocalState } from "@ccshare/core";
+import type { Config, LocalState } from "@ccshare/core";
 import { ccshareDir } from "../lib/config.js";
 import { requireInit } from "../lib/guard.js";
 import { loadConfig } from "../lib/config.js";
 
 function pathsFor(cfgConfigDir: string) {
   return daemonPaths(ccshareDir(), cfgConfigDir);
+}
+
+// ── quiet, config-taking cores (used by the TUI, which can't print to stdout) ──────
+
+/** Daemon file locations for a config. */
+export function daemonPathsFor(cfg: Config): DaemonPaths {
+  return pathsFor(cfg.configDirs[0] ?? process.cwd());
+}
+
+/** Whether a live daemon owns the pidfile for this config. */
+export function isDaemonRunning(cfg: Config): boolean {
+  const pid = readPid(daemonPathsFor(cfg).pidFile);
+  return pid !== null && isAlive(pid);
+}
+
+/** Spawn the detached observer. No console output. */
+export function spawnDaemon(cfg: Config): { pid: number } | { already: number } {
+  const paths = daemonPathsFor(cfg);
+  const existing = readPid(paths.pidFile);
+  if (existing !== null && isAlive(existing)) return { already: existing };
+  const cliEntry = fileURLToPath(new URL("../cli.js", import.meta.url));
+  const pid = spawnDetached(process.execPath, [cliEntry, "daemon", "run"], {
+    logFile: paths.logFile,
+  });
+  return { pid };
+}
+
+/** SIGTERM the running observer. No console output. */
+export function stopDaemonProcess(cfg: Config): "stopped" | "not-running" | "error" {
+  const { pidFile } = daemonPathsFor(cfg);
+  const pid = readPid(pidFile);
+  if (pid === null || !isAlive(pid)) return "not-running";
+  try {
+    process.kill(pid, "SIGTERM");
+    return "stopped";
+  } catch {
+    return "error";
+  }
+}
+
+/** Last `n` non-empty lines of the daemon log (newest last), or [] if none yet. */
+export function tailDaemonLog(cfg: Config, n = 8): string[] {
+  const { logFile } = daemonPathsFor(cfg);
+  try {
+    return readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(-n);
+  } catch {
+    return [];
+  }
 }
 
 /** Foreground loop — what the detached process runs. Blocks until signalled. */

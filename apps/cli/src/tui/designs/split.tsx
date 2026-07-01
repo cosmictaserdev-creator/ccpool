@@ -62,6 +62,7 @@ export function split(
           pal={{ label: P.dim, value: P.cream, accent: P.green }}
         />
       </Box>
+      {model.disconnected ? <Text color={P.red}>ERROR: can't reach the database</Text> : null}
       <Box>
         <Panel title="overall" color={P.orange} width={leftW} height={panelH}>
           <Box marginTop={1} justifyContent="center">
@@ -89,7 +90,7 @@ export function split(
               const col = personColor(u, off + i);
               const isUnknown = u.name === UNKNOWN_USER;
               return (
-                <Box key={u.name} flexDirection="column" marginTop={1}>
+                <Box key={off + i} flexDirection="column" marginTop={1}>
                   <Text>
                     <Text color={P.faint}>{pad("#" + (off + i + 1), 2)} </Text>
                     <Text color={col}>{pad(u.name + (u.isMe ? " ◂" : ""), 10)}</Text>

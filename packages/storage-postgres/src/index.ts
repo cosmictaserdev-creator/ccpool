@@ -4,7 +4,6 @@ import {
   CAP_KINDS,
   SCHEMA_VERSION,
   UNKNOWN_USER,
-  type Budget,
   type CapKind,
   type DbInspection,
   type MessageUsage,
@@ -77,6 +76,9 @@ export class PostgresStorage implements Storage {
         ON usage_markers (at)`;
       await tx`CREATE TABLE IF NOT EXISTS reset_events (
         cap TEXT NOT NULL, at TEXT NOT NULL, "previousPct" DOUBLE PRECISION NOT NULL)`;
+      // The budgets feature was retired; the table is still created so an older
+      // CLI that predates the removal can join a fresh DB without erroring. It is
+      // never read or written by current code.
       await tx`CREATE TABLE IF NOT EXISTS budgets (
         name TEXT NOT NULL, cap TEXT NOT NULL, "sharePct" DOUBLE PRECISION NOT NULL,
         PRIMARY KEY (name, cap))`;
@@ -91,13 +93,9 @@ export class PostgresStorage implements Storage {
   }
 
   async migrate(toVersion: number): Promise<void> {
-    // v1 -> v2: add the account-binding column (idempotent).
-    await this.sql`ALTER TABLE ccshare_meta ADD COLUMN IF NOT EXISTS "accountId" TEXT`;
-    // v2 -> v3: add the activity-markers table (idempotent).
-    await this.sql`CREATE TABLE IF NOT EXISTS usage_markers (
-      id TEXT PRIMARY KEY, "user" TEXT NOT NULL, at TEXT NOT NULL, model TEXT,
-      weight DOUBLE PRECISION NOT NULL)`;
-    await this.sql`CREATE INDEX IF NOT EXISTS idx_usage_markers_at ON usage_markers (at)`;
+    // v1 is the baseline — the full schema is created by initializeSchema, so
+    // there are no historical steps. Kept for the interface and for future
+    // additive migrations (add idempotent ALTER/CREATE steps here then).
     await this.sql`UPDATE ccshare_meta SET "schemaVersion" = ${toVersion}`;
   }
 
@@ -224,22 +222,6 @@ export class PostgresStorage implements Storage {
       at: r.at,
       model: r.model,
       weight: Number(r.weight),
-    }));
-  }
-
-  async setBudget(name: string, cap: CapKind, sharePct: number): Promise<void> {
-    await this.sql`INSERT INTO budgets (name, cap, "sharePct")
-      VALUES (${name}, ${cap}, ${sharePct})
-      ON CONFLICT (name, cap) DO UPDATE SET "sharePct" = EXCLUDED."sharePct"`;
-  }
-
-  async getBudgets(): Promise<Budget[]> {
-    const rows = await this.sql<{ name: string; cap: string; sharePct: number }[]>`
-      SELECT name, cap, "sharePct" FROM budgets ORDER BY name, cap`;
-    return rows.map((r) => ({
-      name: r.name,
-      cap: r.cap as CapKind,
-      sharePct: Number(r.sharePct),
     }));
   }
 }

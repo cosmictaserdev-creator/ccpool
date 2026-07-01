@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStorage, SCHEMA_VERSION, type LocalState } from "@ccshare/core";
+import { MemoryStorage, type LocalState } from "@ccshare/core";
 import { Daemon, type DaemonDeps } from "../src/daemon.js";
 import { acquireLock, AlreadyRunningError, daemonPaths } from "../src/lifecycle.js";
 
@@ -113,19 +113,9 @@ async function healSchema(daemon: Daemon): Promise<void> {
 }
 
 describe("Daemon schema auto-migration", () => {
-  it("migrates an out-of-date shared DB forward on startup", async () => {
-    const h = setup({ five_hour: { utilization: 42, resets_at: null } });
-    await h.storage.initializeSchema("acc-1");
-    await h.storage.migrate(SCHEMA_VERSION - 1); // pretend an older CLI created it
-    const spy = vi.spyOn(h.storage, "migrate");
-
-    await healSchema(new Daemon(h.deps));
-
-    expect(spy).toHaveBeenCalledWith(SCHEMA_VERSION);
-    const info = await h.storage.inspect();
-    expect(info.kind === "ccshare" && info.schemaVersion).toBe(SCHEMA_VERSION);
-  });
-
+  // v1 is the single baseline, so a freshly initialized DB is already current and
+  // the daemon must never migrate it. (The forward-migration machinery is retained
+  // for future versions; there are no historical steps to exercise.)
   it("does not migrate a current DB", async () => {
     const h = setup({ five_hour: { utilization: 42, resets_at: null } });
     await h.storage.initializeSchema("acc-1");

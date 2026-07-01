@@ -27,7 +27,6 @@ const vm: ViewModel = {
     { user: "alice", tokens: 1_240_000, lastActivityAt: iso(2) },
     { user: "ben", tokens: 840_000, lastActivityAt: iso(40) },
   ],
-  budgets: [],
   source: "db",
   stale: false,
   daemonRunning: true,

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Box, Text, useApp, useInput, useStdin, useStdout } from "ink";
+import { Box, Text, useApp, useInput, useStdin } from "ink";
 import type { Config, Storage } from "@ccshare/core";
 import { gatherView } from "../lib/view.js";
 import { toDesignModel, type DesignModel } from "../lib/design-model.js";
 import { loadConfig } from "../lib/config.js";
 import { DESIGNS } from "./designs/index.js";
 import { P } from "./designs/palette.js";
+import { useTermSize } from "./use-term-size.js";
 import { GITHUB_URL, SITE_URL, link } from "../lib/links.js";
 
 /**
@@ -17,20 +18,30 @@ const MESSAGES: { label: string; url?: string }[] = [
   { label: "★ star ccshare on GitHub", url: GITHUB_URL },
   { label: "⚲ visit ccshare.hexxt.dev", url: SITE_URL },
   { label: "♥ sponsor ccshare's work", url: GITHUB_URL },
-  { label: "↻ share access not lose it" },
+  { label: "↻ share access, don't lose it" },
   { label: "✎ open an issue on GitHub", url: GITHUB_URL },
 ];
-const SHORTCUTS = "⇧⇥ switch · ↑↓ scroll · r refresh · q quit";
+const SHORTCUTS = "⇥ switch · ↑↓ scroll · r refresh · q quit";
+const SHORTCUTS_CONFIG = "⇥ switch · ↑↓ scroll · c configure · q quit";
 
 /**
  * Live shared view. Polls the DB / state.json every 2s and re-renders the clock
  * every 1s so reset countdowns tick. Builds the same DesignModel the `status`
- * command uses, then hands it to one of three swappable designs (⇧⇥ to switch).
+ * command uses, then hands it to one of three swappable designs (tab / shift+tab).
  */
-export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.ReactElement {
+export function App({
+  cfg,
+  storage,
+  onConfigure,
+}: {
+  cfg: Config;
+  storage: Storage;
+  /** When set, `c` opens the config screen and the footer advertises it. */
+  onConfigure?: () => void;
+}): React.ReactElement {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
-  const { stdout } = useStdout();
+  const { cols, rows } = useTermSize();
   const [model, setModel] = useState<DesignModel | null>(null);
   const [, setTick] = useState(0);
   const [err, setErr] = useState<string | null>(null);
@@ -52,7 +63,7 @@ export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.
     void refresh();
     const poll = setInterval(() => void refresh(), 2000);
     const clock = setInterval(() => setTick((t) => t + 1), 1000);
-    const promo = setInterval(() => setMsg((m) => (m + 1) % MESSAGES.length), 6000);
+    const promo = setInterval(() => setMsg((m) => (m + 1) % MESSAGES.length), 10000);
     return () => {
       clearInterval(poll);
       clearInterval(clock);
@@ -60,14 +71,13 @@ export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.
     };
   }, [refresh]);
 
-  const cols = stdout?.columns ?? 80;
-  const rows = stdout?.rows ?? 24;
   const innerCols = cols - 2;
   const n = DESIGNS.length;
 
   // bottom bar: one row when wide, two stacked when the message+shortcuts won't fit
   const current = MESSAGES[msg]!;
-  const wide = innerCols >= current.label.length + SHORTCUTS.length + 4;
+  const shortcutsText = onConfigure ? SHORTCUTS_CONFIG : SHORTCUTS;
+  const wide = innerCols >= current.label.length + shortcutsText.length + 4;
   const footerH = wide ? 1 : 2;
   const bodyRows = Math.max(4, rows - footerH);
 
@@ -79,9 +89,11 @@ export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.
   useInput(
     (input, key) => {
       if (input === "q" || key.escape) exit();
+      else if (input === "c" && onConfigure) onConfigure();
       else if (input === "r") void refresh();
-      else if (key.tab && key.shift) {
-        setIdx((i) => (i + 1) % n);
+      else if (key.tab) {
+        // tab cycles designs forward; shift+tab reverses
+        setIdx((i) => (i + (key.shift ? n - 1 : 1)) % n);
         setScroll(0);
       } else if (key.downArrow || input === "j") setScroll((s) => Math.min(maxScroll, s + 1));
       else if (key.upArrow || input === "k") setScroll((s) => Math.max(0, s - 1));
@@ -90,7 +102,7 @@ export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.
       else if (input === "g") setScroll(0);
       else if (input === "G") setScroll(maxScroll);
     },
-    { isActive: isRawModeSupported }
+    { isActive: !!isRawModeSupported }
   );
 
   const footer = DESIGNS[idx]!.footer;
@@ -99,7 +111,7 @@ export function App({ cfg, storage }: { cfg: Config; storage: Storage }): React.
       {current.url ? link(current.label, current.url) : current.label}
     </Text>
   );
-  const shortcuts = <Text color={footer.shortcuts}>{SHORTCUTS}</Text>;
+  const shortcuts = <Text color={footer.shortcuts}>{shortcutsText}</Text>;
 
   return (
     <Box flexDirection="column" width={cols} height={rows} paddingX={1}>

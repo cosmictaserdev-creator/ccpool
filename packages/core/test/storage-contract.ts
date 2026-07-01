@@ -58,10 +58,10 @@ export function runStorageContract(h: ContractHarness): void {
       expect(boundId(await s.inspect())).toBe("acc-1");
     });
 
-    it("migrate is idempotent on the account-binding column", async () => {
+    it("migrate to the current version is a no-op on a fresh DB (accountId intact)", async () => {
       const s = await open(h.fresh());
       await s.initializeSchema("acc-1");
-      // Column already exists on a fresh v2 DB; migrate must not throw or clobber it.
+      // v1 baseline already has the account-binding column; migrate must not clobber it.
       await s.migrate(SCHEMA_VERSION);
       expect(await s.inspect()).toMatchObject({ kind: "ccshare", accountId: "acc-1" });
     });
@@ -164,10 +164,10 @@ export function runStorageContract(h: ContractHarness): void {
       expect(markers[0]).toEqual(m);
     });
 
-    it("migrate is idempotent on the activity-markers table", async () => {
+    it("migrate to the current version is a no-op on a fresh DB (markers intact)", async () => {
       const s = await open(h.fresh());
       await s.initializeSchema();
-      await s.migrate(SCHEMA_VERSION); // table already exists on a fresh v3 DB
+      await s.migrate(SCHEMA_VERSION); // markers table already exists on a fresh v1 DB
       await s.recordUsageMarker({
         id: "x",
         user: "sam",
@@ -187,15 +187,6 @@ export function runStorageContract(h: ContractHarness): void {
       expect(resets).toEqual([
         { cap: "five_hour", at: "2026-06-29T10:00:00.000Z", previousPct: 90 },
       ]);
-    });
-
-    it("sets and reads budgets, upserting on conflict", async () => {
-      const s = await open(h.fresh());
-      await s.initializeSchema();
-      await s.setBudget("sam", "seven_day", 33);
-      await s.setBudget("sam", "seven_day", 40); // overwrite
-      const budgets = await s.getBudgets();
-      expect(budgets).toEqual([{ name: "sam", cap: "seven_day", sharePct: 40 }]);
     });
   });
 }

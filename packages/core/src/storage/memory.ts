@@ -1,5 +1,4 @@
 import type {
-  Budget,
   CapKind,
   DbInspection,
   MessageUsage,
@@ -29,7 +28,6 @@ export class MemoryStorage implements Storage {
   private resets: ResetEvent[] = [];
   private messages = new Map<string, MessageUsage>();
   private markers = new Map<string, UsageMarker>();
-  private budgets = new Map<string, Budget>();
 
   constructor(opts: { foreign?: boolean } = {}) {
     this.foreign = opts.foreign ?? false;
@@ -113,14 +111,6 @@ export class MemoryStorage implements Storage {
 
   async getUsageMarkersSince(since: string): Promise<UsageMarker[]> {
     return [...this.markers.values()].filter((m) => m.at >= since);
-  }
-
-  async setBudget(name: string, cap: CapKind, sharePct: number): Promise<void> {
-    this.budgets.set(`${name}:${cap}`, { name, cap, sharePct });
-  }
-
-  async getBudgets(): Promise<Budget[]> {
-    return [...this.budgets.values()];
   }
 }
 

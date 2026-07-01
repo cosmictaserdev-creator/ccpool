@@ -5,7 +5,6 @@ import {
   bar,
   countdown,
   pctLabel,
-  type Budget,
   type CapKind,
   type UsageSample,
   type UserShare,
@@ -46,11 +45,7 @@ export function formatAge(updatedAt: string | null, now: number = Date.now()): s
  * sum to the header percentage per column. `unknown` is always listed (it absorbs
  * unattributed activity). Shares are estimates from relative Code activity (§10).
  */
-export function renderUserTable(
-  shares: UserShare[],
-  samples: UsageSample[],
-  budgets: Budget[] = []
-): string[] {
+export function renderUserTable(shares: UserShare[], samples: UsageSample[]): string[] {
   const caps = CAP_KINDS.filter((c) => samples.some((s) => s.cap === c));
   if (caps.length === 0 || shares.length === 0) return [];
 
@@ -60,18 +55,13 @@ export function renderUserTable(
     users.add(sh.user);
     byUserCap.set(`${sh.user}:${sh.cap}`, sh.pct);
   }
-  const budgetOf = new Map<string, number>();
-  for (const b of budgets) budgetOf.set(`${b.name}:${b.cap}`, b.sharePct);
 
   const nameWidth = Math.max(4, ...[...users].map((u) => u.length));
   const colWidth = 8;
   const head = (cap: CapKind) => CAP_LABEL[cap].padStart(colWidth);
   const cell = (u: string, c: CapKind) => {
     const pct = byUserCap.get(`${u}:${c}`) ?? 0;
-    const budget = budgetOf.get(`${u}:${c}`);
-    // ▲ over the agreed share, faint dot when within it
-    const mark = budget === undefined ? " " : pct > budget + 0.5 ? "▲" : "·";
-    return `${pctLabel(pct).padStart(colWidth - 1)}${mark}`;
+    return pctLabel(pct).padStart(colWidth);
   };
 
   // sort by 5h (or first cap) share desc; unknown always last
@@ -88,14 +78,13 @@ export function renderUserTable(
   for (const u of ordered) {
     lines.push(u.padEnd(nameWidth) + caps.map((c) => cell(u, c)).join(""));
   }
-  if (budgets.length > 0) lines.push("▲ over agreed share · · within budget");
   return lines;
 }
 
 /** Tank + user table lines — no freshness footer. Used by the TUI to compose its own bottom bar. */
 export function renderContent(vm: ViewModel, now: number = Date.now()): string[] {
   const lines = renderTank(vm.samples, now);
-  const userLines = renderUserTable(vm.shares, vm.samples, vm.budgets);
+  const userLines = renderUserTable(vm.shares, vm.samples);
   if (userLines.length > 0) {
     lines.push("");
     lines.push(...userLines);

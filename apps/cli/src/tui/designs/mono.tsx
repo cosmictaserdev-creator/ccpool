@@ -16,7 +16,7 @@ export function mono(
   rows: number,
   off: number
 ): React.ReactElement {
-  const w = cols - 2;
+  const w = cols; // fill the drawable width; the app owns the outer padding
   const visible = monoVisible(cols, rows);
   const shown = model.members.slice(off, off + visible);
   const hasOpus = model.caps.some((c) => c.kind === "seven_day_opus");
@@ -67,13 +67,14 @@ export function mono(
         <Text color={M.lo}>members</Text>
         <Text color={M.mid}>{scrollLabel(off, visible, model.members.length)}</Text>
       </Box>
+      {model.disconnected ? <Text color={M.hi}>ERROR: can't reach the database</Text> : null}
       <Text color={M.lo}>
         {pad(" # name", w - rightW)}
         {headRight}
       </Text>
       {shown.map((u, i) => (
         <Leader
-          key={u.name}
+          key={off + i}
           left={pad(`${lpad(String(off + i + 1), 2)} ${u.name}${u.isMe ? " ◂" : ""}`, 15)}
           pct={u.byCap.five_hour ?? 0}
           right={fig(u)}

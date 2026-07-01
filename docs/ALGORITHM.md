@@ -126,14 +126,14 @@ attribution baseline (`win[0].pct`), the target (`win[last].pct`), and reset
 detection would all read garbage. Nothing about a random `projectId` catches that.
 
 So the ledger is **bound to an account**. `ccshare_meta.accountId` records the
-`accountUuid` (schema v2) — the **UUID, never the email** (email is only a display
-label, and can even be absent). The binding is enforced at two points:
+`accountUuid` — the **UUID, never the email** (email is only a display label, and
+can even be absent). The binding is enforced at two points:
 
 - **`init`** resolves the local `accountUuid`. On an _empty_ DB it writes the binding
   at creation. On an existing _ccshare_ DB it **refuses** (like `foreign`) when the
   DB's bound account differs from the local one, before any migrate or write. A DB
-  that is still _unbound_ (pre-v2, or created before onboarding) is **claimed** for
-  the local account on join.
+  that is still _unbound_ (created before onboarding) is **claimed** for the local
+  account on join.
 - **The daemon** reads the binding once at startup. Every tick it compares the freshly
   resolved local account; on a mismatch it **halts all ledger writes** (samples,
   resets, messages) and flags `account.conflict` in `state.json`, which the views
@@ -618,16 +618,15 @@ before the daemon's first write:
 ```ts
 // apps/cli/src/lib/view.ts  (abridged)
 const since = new Date(now - CAP_WINDOW_MS.seven_day).toISOString();
-const [latest, samplesSince, messagesSince, resetsSince, markersSince, budgets] = await Promise.all(
-  [
-    storage.getLatestSamples(), // the header bars
-    storage.getUsageSamplesSince(since), // the trajectory, for attribution
-    storage.getMessageUsageSince(since), // everyone's measured activity
-    storage.getResetsSince(since), // reset events bound the window (§7)
-    storage.getUsageMarkersSince(since), // daemon activity markers (§7 fallback)
-    storage.getBudgets(),
-  ]
-);
+const [latest, samplesSince, messagesSince, resetsSince] = await Promise.all([
+  storage.getLatestSamples(), // the header bars
+  storage.getUsageSamplesSince(since), // the trajectory, for attribution
+  storage.getMessageUsageSince(since), // everyone's measured activity
+  storage.getResetsSince(since), // reset events bound the window (§7)
+]);
+// Fetch markers defensively — a DB missing the table for any reason degrades to
+// "no markers" rather than letting one missing table blank the whole view.
+const markersSince = await storage.getUsageMarkersSince(since).catch(() => []);
 const shares = attributeShares(samplesSince, messagesSince, now, resetsSince, markersSince); // §7
 const members = summarizeMembers(messagesSince); // per-name token totals + last-seen
 const account = await resolveEmail(configDir); // oauthAccount.emailAddress, cached ~1/min
@@ -663,11 +662,24 @@ Two surfaces render that model:
   member's bar matches their name colour.
 - **`tui`** re-runs `gatherView` every 2s (and ticks the clock every 1s so
   countdowns move), rendering the same model through one of three interchangeable
-  Ink layouts — **overview · split · mono**, cycled with `⇧⇥` — adding per-person
-  token totals and scrolling for large groups.
+  Ink layouts — **overview · split · mono**, cycled with **Tab** (Shift+Tab
+  reverses) — adding per-person token totals and scrolling for large groups. The
+  views fill the terminal width and reflow live on resize (`useTermSize`).
 
-Edge states (token expired, daemon down, DB unreachable, live-poll badge) render as
-footnotes.
+Bare **`ccshare`** opens a **TUI-first shell** (`tui/Root.tsx`): unconfigured, it
+lands on a guided onboarding wizard (the interactive form of `init`); configured, it
+opens the live view, where **`c`** opens a tabbed **configure** screen
+(general · daemon, same Tab / Shift+Tab cycling). Configure writes config, tests a
+storage connection before saving, and starts/stops the daemon — all the interactive
+form of the flag commands, which stay as a scriptable fallback.
+
+Edge states (token expired, daemon down, live-poll badge) render as footnotes. When
+the **database is unreachable** but the tank is still cached (offline), the member
+table can't show the real split, so it degrades to a placeholder rather than an empty
+list: `DISCONNECTED_ROWS` grey `xxxx` rows whose shares are a random — but
+seed-stable, so they don't flicker across re-renders — partition summing to each
+cached window, all marked idle, under a red (mono: white) "can't reach the database"
+line. It reverts to the real per-person split the moment the DB is reachable again.
 
 ```
  ▐▛███▜▌   ccshare · status  ·  you are sam
@@ -720,8 +732,6 @@ interface Storage {
   getMessageUsageSince(since): Promise<MessageUsage[]>;
   recordUsageMarker(m): Promise<void>; // idempotent on id (§7 activity markers)
   getUsageMarkersSince(since): Promise<UsageMarker[]>;
-  setBudget(name, cap, pct);
-  getBudgets();
   upsertUser(name);
   getUsers();
   // …
@@ -744,30 +754,23 @@ type DbInspection =
 ```
 
 The marker is a `ccshare_meta` table holding `app='ccshare'`, `schemaVersion`, a
-`projectId`, `createdAt`, and (schema v2) the bound `accountId` (§1.5). Init only
-creates tables on `empty` (after explicit confirmation), only joins on `ccshare` —
-and then only when the bound account matches (or is still null) — and **never**
-writes alongside a `foreign` schema. `inspect` reads `ccshare_meta` with `SELECT *`
-so a pre-v2 DB without the `accountId` column still reads (the missing column comes
-back as `null`, i.e. unbound), and `migrate` adds the column idempotently.
+`projectId`, `createdAt`, and the bound `accountId` (§1.5). Init only creates tables
+on `empty` (after explicit confirmation), only joins on `ccshare` — and then only
+when the bound account matches (or is still null) — and **never** writes alongside a
+`foreign` schema. `inspect` reads `ccshare_meta` with `SELECT *`, so an older DB
+missing a column still reads (the absent column comes back as `null`).
 
 ---
 
-## 10. Budgets
+## 10. No budgets or quotas
 
-Optional fair-share targets per `(name, cap)`, set with `budget set` and shown by
-`budget list`. They don't change attribution; they only annotate it — a share above
-its target is "over":
+ccshare deliberately has **no budgets, targets, or quotas**. It reports the reality
+of who used what and leaves it to the group to coordinate how much anyone should
+use — the tool never prescribes or enforces a share.
 
-```ts
-const over = budget !== undefined && pct > budget + 0.5; // ▲ over · within
-```
-
-> **Note:** the inline `▲`/`·` over-budget marker is **not currently rendered** by
-> the redesigned `status`/`tui` views — `toDesignModel` doesn't yet thread budgets
-> through to the member rows. The original text-table renderer in
-> `apps/cli/src/lib/render.ts` still contains the marker logic; re-surfacing it in
-> the new designs is open work.
+> The `budgets` table is still created by `initializeSchema` (empty, never read or
+> written) purely so an older CLI that predates the feature's removal can still join
+> a freshly created database. No current code touches it.
 
 ---
 

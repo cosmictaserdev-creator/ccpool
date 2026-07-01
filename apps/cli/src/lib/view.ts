@@ -8,11 +8,11 @@ import {
   resolveAccount,
   summarizeMembers,
   UsageAuthError,
-  type Budget,
   type Config,
   type LocalState,
   type MemberSummary,
   type Storage,
+  type UsageMarker,
   type UsageSample,
   type UserShare,
 } from "@ccshare/core";
@@ -26,7 +26,6 @@ export interface ViewModel {
   samples: UsageSample[];
   shares: UserShare[]; // per-user rows (Phase 5); empty until then
   members: MemberSummary[]; // per-name measured activity (tokens, last seen)
-  budgets: Budget[]; // Phase 6
   source: ViewSource;
   /** DB unreachable — showing last-known numbers. */
   stale: boolean;
@@ -88,22 +87,27 @@ export async function gatherView(cfg: Config, storage: Storage): Promise<ViewMod
   let dbSamples: UsageSample[] = [];
   let shares: UserShare[] = [];
   let members: MemberSummary[] = [];
-  let budgets: Budget[] = [];
   let stale = false;
   try {
     const now = Date.now();
     // pull enough history to cover the widest window, then attribute deltas
     const since = new Date(now - CAP_WINDOW_MS.seven_day).toISOString();
-    const [latest, samplesSince, messagesSince, resetsSince, markersSince, b] = await Promise.all([
+    const [latest, samplesSince, messagesSince, resetsSince] = await Promise.all([
       storage.getLatestSamples(),
       storage.getUsageSamplesSince(since),
       storage.getMessageUsageSince(since),
       storage.getResetsSince(since),
-      storage.getUsageMarkersSince(since),
-      storage.getBudgets(),
     ]);
+    // Fetch markers defensively: a DB missing the table for any reason should
+    // degrade to "no markers", not make the whole (reachable) view look
+    // unreachable — the view still renders from samples + messages.
+    let markersSince: UsageMarker[] = [];
+    try {
+      markersSince = await storage.getUsageMarkersSince(since);
+    } catch {
+      /* no markers table — attribute without markers */
+    }
     dbSamples = latest;
-    budgets = b;
     shares = attributeShares(samplesSince, messagesSince, now, resetsSince, markersSince);
     members = summarizeMembers(messagesSince);
   } catch {
@@ -131,7 +135,6 @@ export async function gatherView(cfg: Config, storage: Storage): Promise<ViewMod
     samples,
     shares,
     members,
-    budgets,
     source,
     stale,
     daemonRunning,

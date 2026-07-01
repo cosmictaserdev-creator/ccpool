@@ -35,11 +35,11 @@ machine, everyone points at **one shared database**, and the tool shows:
 - the **per-person split** of who drove that usage, built from Claude Code activity
   seen while the daemon runs, credited to the active name on each machine — with
   each person's token total and whether they're active right now (anything untied to
-  a known name shows as `unknown`);
-- optional **per-person budgets** — fair-share targets you can set and list.
+  a known name shows as `unknown`).
 
 > It does **not** increase anyone's limit, multiplex the subscription, or enforce
-> anything. It makes shared usage _legible_ so a group can govern itself.
+> anything. It makes shared usage _legible_ so a group can govern itself — deciding
+> who backs off and when is left to the people, not the tool.
 
 ## 👾 How it works
 
@@ -84,26 +84,30 @@ This produces the `ccshare` binary at `apps/cli/dist/cli.js`. Run it with
 `node apps/cli/dist/cli.js <command>`, or link it for a global `ccshare`:
 
 ```bash
-cd apps/cli && pnpm link --global   # then just `ccshare <command>`
+pnpm link:cli   # then just `ccshare <command>`
 ```
 
 The examples below use `ccshare` for brevity.
 
 ### 3. Initialise (required first run)
 
-Everyone in the group runs `init` pointing at the **same** database URL — that URL
-is the join key. The first person sets up the schema; everyone after joins it.
+Everyone in the group points at the **same** database URL — that URL is the join
+key. The first person sets up the schema; everyone after joins it. Just run:
 
 ```bash
-ccshare init
+ccshare        # unconfigured → a guided onboarding wizard; configured → the live view
 ```
 
-You'll be asked to pick storage, enter the database URL (+ token if remote), and
-choose a **name** (letters, digits, hyphens). On an empty database it asks before
-creating tables; if the database already contains another project it refuses
-rather than mixing in — ccshare needs its own clean, dedicated database.
+Bare `ccshare` opens a TUI. On a fresh machine it walks you through onboarding one
+step at a time — pick storage, enter the database URL (+ token if remote), it tests
+the connection and inspects the database, then you choose a **name** (letters,
+digits, hyphens) and it starts the daemon. On an empty database it asks before
+creating tables; if the database already contains another project it refuses rather
+than mixing in — ccshare needs its own clean, dedicated database. Once configured,
+`ccshare` opens straight to the live view (press **c** there to reconfigure).
 
-Prefer non-interactive? Every prompt has a flag:
+The same flow is scriptable through the `ccshare init` flag command — every prompt
+has a flag, so it runs non-interactively:
 
 ```bash
 ccshare init --driver libsql --url "file:./ccshare.db" --name sam --yes
@@ -129,8 +133,10 @@ From now on your live usage flows into the shared DB under your current name.
 ### 5. Watch usage
 
 ```bash
-ccshare tui        # live shared view (alias: ccshare live)
-                   #   ⇧⇥ switch view · ↑↓ scroll · r refresh · q quit
+ccshare            # opens the TUI: onboarding if unconfigured, else the live view
+                   #   press c to configure (name, storage, daemon)
+ccshare tui        # jump straight to the live shared view (alias: ccshare live)
+                   #   Tab switch view (⇧Tab reverses) · ↑↓ scroll · r refresh · q quit
 ccshare status     # one-shot snapshot to stdout
 ```
 
@@ -160,8 +166,11 @@ of the 5-hour window right now. `unknown` is always listed and absorbs usage the
 Code split can't see (e.g. claude.ai chat).
 
 `ccshare tui` shows the same data live and adds three interchangeable layouts
-(**overview · split · mono**, cycle with `⇧⇥`), per-person token totals, and
-scrolling for large groups.
+(**overview · split · mono**, cycle with `Tab`, `⇧Tab` reverses), per-person token
+totals, and scrolling for large groups. The views fill the terminal and reflow on
+resize; when the database is unreachable but the tank is still cached, the member
+table shows greyed `xxxx` placeholder rows and a "can't reach the database" line
+until it's back.
 
 ### 6. Statusline (optional)
 
@@ -187,17 +196,8 @@ Names are just labels, not machines — several people can share a machine and h
 off by changing the name. Whoever's name is set when activity is ingested gets
 credited; the running daemon picks up the change without a restart.
 
-### Budgets (optional fair-share targets)
-
-```bash
-ccshare budget set sam weekly 33    # sam's target share of the weekly window
-ccshare budget set sam 5h 33
-ccshare budget list
-```
-
-Targets are stored per `(name, cap)` and shown by `budget list`. (The inline
-over/under marker isn't surfaced in the redesigned `status`/`tui` views yet — see
-`docs/ALGORITHM.md` §10.)
+ccshare deliberately has **no budgets or quotas** — it reports the reality of who
+used what and leaves it to the group to coordinate how much anyone should use.
 
 ---
 

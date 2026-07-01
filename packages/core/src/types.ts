@@ -86,13 +86,6 @@ export interface UserShare {
   pct: number;
 }
 
-/** Optional fair-share target, keyed by name. */
-export interface Budget {
-  name: string;
-  cap: CapKind;
-  sharePct: number; // 0..100, this name's allotment of the window
-}
-
 // ── storage inspection ────────────────────────────────────────────────────────
 
 /** Result of inspecting a target database before init. */

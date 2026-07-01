@@ -6,7 +6,6 @@ import {
   CAP_KINDS,
   SCHEMA_VERSION,
   UNKNOWN_USER,
-  type Budget,
   type CapKind,
   type DbInspection,
   type MessageUsage,
@@ -103,6 +102,9 @@ export class LibsqlStorage implements Storage {
            at TEXT NOT NULL,
            previousPct REAL NOT NULL
          )`,
+        // The budgets feature was retired; the table is still created so an older
+        // CLI that predates the removal can join a fresh DB without erroring. It is
+        // never read or written by current code.
         `CREATE TABLE IF NOT EXISTS budgets (
            name TEXT NOT NULL,
            cap TEXT NOT NULL,
@@ -128,28 +130,9 @@ export class LibsqlStorage implements Storage {
   }
 
   async migrate(toVersion: number): Promise<void> {
-    // v1 -> v2: add the account-binding column (SQLite has no ADD COLUMN IF NOT
-    // EXISTS, so probe the table first to stay idempotent).
-    const info = await this.client.execute("PRAGMA table_info(ccshare_meta)");
-    const hasAccountId = info.rows.some((r) => String(r.name) === "accountId");
-    if (!hasAccountId) {
-      await this.client.execute("ALTER TABLE ccshare_meta ADD COLUMN accountId TEXT");
-    }
-    // v2 -> v3: add the activity-markers table (CREATE ... IF NOT EXISTS is
-    // idempotent, so re-running on a fresh v3 DB is a no-op).
-    await this.client.batch(
-      [
-        `CREATE TABLE IF NOT EXISTS usage_markers (
-           id TEXT PRIMARY KEY,
-           user TEXT NOT NULL,
-           at TEXT NOT NULL,
-           model TEXT,
-           weight REAL NOT NULL
-         )`,
-        `CREATE INDEX IF NOT EXISTS idx_usage_markers_at ON usage_markers (at)`,
-      ],
-      "write"
-    );
+    // v1 is the baseline — the full schema is created by initializeSchema, so
+    // there are no historical steps. Kept for the interface and for future
+    // additive migrations (add idempotent ALTER/CREATE steps here then).
     await this.client.execute({
       sql: "UPDATE ccshare_meta SET schemaVersion = ?",
       args: [toVersion],
@@ -292,25 +275,6 @@ export class LibsqlStorage implements Storage {
       at: String(r.at),
       model: r.model == null ? null : String(r.model),
       weight: Number(r.weight),
-    }));
-  }
-
-  async setBudget(name: string, cap: CapKind, sharePct: number): Promise<void> {
-    await this.client.execute({
-      sql: `INSERT INTO budgets (name, cap, sharePct) VALUES (?, ?, ?)
-            ON CONFLICT(name, cap) DO UPDATE SET sharePct = excluded.sharePct`,
-      args: [name, cap, sharePct],
-    });
-  }
-
-  async getBudgets(): Promise<Budget[]> {
-    const { rows } = await this.client.execute(
-      "SELECT name, cap, sharePct FROM budgets ORDER BY name, cap"
-    );
-    return rows.map((r) => ({
-      name: String(r.name),
-      cap: r.cap as CapKind,
-      sharePct: Number(r.sharePct),
     }));
   }
 }

@@ -252,7 +252,7 @@ export function InitScreen({
             : "⏎ next · esc back";
 
   return (
-    <Box flexDirection="column" width={cols} height={rows} paddingX={1}>
+    <Box flexDirection="column" width={cols} height={Math.max(1, rows - 1)} paddingX={1}>
       <Box flexGrow={1} />
       <Box
         alignSelf="center"

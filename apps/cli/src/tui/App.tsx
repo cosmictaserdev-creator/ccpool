@@ -79,7 +79,13 @@ export function App({
   const shortcutsText = onConfigure ? SHORTCUTS_CONFIG : SHORTCUTS;
   const wide = innerCols >= current.label.length + shortcutsText.length + 4;
   const footerH = wide ? 1 : 2;
-  const bodyRows = Math.max(4, rows - footerH);
+  // Leave the last terminal row unused so the rendered output stays strictly
+  // shorter than the terminal. At full height Ink falls back to clearing the
+  // whole screen every frame (ink.js: outputHeight >= stdout.rows), which
+  // flickers on iTerm and most terminals; one row of slack keeps it on the
+  // flicker-free incremental path.
+  const appRows = Math.max(1, rows - 1);
+  const bodyRows = Math.max(4, appRows - footerH);
 
   const visible = DESIGNS[idx]!.visible(innerCols, bodyRows);
   const total = model?.members.length ?? 0;
@@ -114,7 +120,7 @@ export function App({
   const shortcuts = <Text color={footer.shortcuts}>{shortcutsText}</Text>;
 
   return (
-    <Box flexDirection="column" width={cols} height={rows} paddingX={1}>
+    <Box flexDirection="column" width={cols} height={appRows} paddingX={1}>
       {model ? (
         DESIGNS[idx]!.render(model, innerCols, bodyRows, off)
       ) : (

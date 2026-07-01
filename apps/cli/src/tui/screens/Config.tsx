@@ -87,7 +87,7 @@ export function ConfigScreen({
   const cycleTab = (dir: 1 | -1): void => setTab((t) => (t + dir + TABS.length) % TABS.length);
 
   return (
-    <Box flexDirection="column" width={cols} height={rows} paddingX={1}>
+    <Box flexDirection="column" width={cols} height={Math.max(1, rows - 1)} paddingX={1}>
       <Box height={1} />
       <Box>
         <Clawd color={P.blue} />

@@ -84,6 +84,6 @@ export function newConfig(opts: {
     name: opts.name,
     pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
     configDirs: opts.configDirs,
-    logLevel: "info",
+    logLevel: "debug",
   };
 }

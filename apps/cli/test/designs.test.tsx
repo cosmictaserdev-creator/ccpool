@@ -121,10 +121,12 @@ describe("logged out (server rejected the bearer)", () => {
   };
   const model = toDesignModel(loggedOutVm, "alice", now);
 
-  it("surfaces a logged-out alert and never fabricates member rows", () => {
+  it("surfaces a logged-out alert and shows only the unattributed unknown row", () => {
     expect(model.alert).toMatch(/logged out/i);
     expect(model.loggedOut).toBe(true);
-    expect(model.members).toEqual([]);
+    // No fabricated members; the tank we do have falls entirely to `unknown`.
+    expect(model.members.map((m) => m.name)).toEqual(["unknown"]);
+    expect(model.members[0]!.byCap.five_hour).toBe(40);
   });
 
   for (const d of DESIGNS) {
@@ -133,6 +135,46 @@ describe("logged out (server rejected the bearer)", () => {
       const frame = lastFrame() ?? "";
       expect(frame).toMatch(/logged out/i);
       expect(frame).not.toContain("xxxx");
+      unmount();
+    });
+  }
+});
+
+describe("freshly initialized ledger (connected, no usage yet)", () => {
+  // A live view whose ledger has a tank reading but no attributed activity: shares
+  // are empty until someone uses Claude Code. The table must still show `unknown`
+  // holding the whole tank — never empty.
+  const freshVm: ViewModel = {
+    samples: [
+      { cap: "five_hour", pct: 12, resetsAt: null, capturedAt: iso(0) },
+      { cap: "seven_day", pct: 3, resetsAt: null, capturedAt: iso(0) },
+    ],
+    shares: [],
+    members: [],
+    users: [{ name: "sam", createdAt: iso(5) }],
+    source: "db",
+    stale: false,
+    loggedOut: false,
+    daemonRunning: true,
+    tokenExpired: false,
+    account: "zeghdns@gmail.com",
+    updatedAt: iso(0),
+  };
+  const model = toDesignModel(freshVm, "sam", now);
+
+  it("shows exactly the unknown row, holding the full tank per cap", () => {
+    expect(model.alert).toBeNull();
+    expect(model.members.map((m) => m.name)).toEqual(["unknown"]);
+    const u = model.members[0]!;
+    expect(u.byCap.five_hour).toBe(12);
+    expect(u.byCap.seven_day).toBe(3);
+    expect(u.active).toBe(false);
+  });
+
+  for (const d of DESIGNS) {
+    it(`renders "${d.name}" with an unknown row (never an empty table)`, () => {
+      const { lastFrame, unmount } = render(<Box>{d.render(model, 108, 24, 0)}</Box>);
+      expect(lastFrame() ?? "").toContain("unknown");
       unmount();
     });
   }

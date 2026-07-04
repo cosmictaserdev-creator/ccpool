@@ -94,6 +94,20 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
     };
   });
 
+  // `unknown` is always a row while a tank is showing — it holds the unattributed
+  // remainder of the tank. Attribution emits it for every cap that has samples, but
+  // a freshly initialized ledger has none yet, so synthesize it (holding whatever
+  // isn't credited to a real member) rather than showing an empty table under a
+  // live tank.
+  if (caps.length > 0 && !members.some((m) => m.name === UNKNOWN_USER)) {
+    const byCap: Partial<Record<CapKind, number>> = {};
+    for (const c of caps) {
+      const others = members.reduce((sum, m) => sum + (m.byCap[c.kind] ?? 0), 0);
+      byCap[c.kind] = Math.max(0, c.pct - others);
+    }
+    members.push({ name: UNKNOWN_USER, isMe: false, byCap, tokens: 0, active: false });
+  }
+
   // sort by the first present cap's share desc; unknown always last
   const sortCap = caps[0]?.kind;
   members.sort((a, b) => {

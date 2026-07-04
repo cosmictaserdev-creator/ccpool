@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { render } from "ink-testing-library";
 import { emptyBatch, MemoryStorage, StorageViewSource, type Config } from "@ccshare/core";
 import { App } from "../src/tui/App.js";
+import { Root } from "../src/tui/Root.js";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -16,8 +17,7 @@ beforeEach(() => {
   ccshareDir = mkdtempSync(join(tmpdir(), "ccshare-tui-"));
   process.env.CCSHARE_DIR = ccshareDir;
   cfg = {
-    mode: "selfhost",
-    storage: { driver: "memory", url: "" },
+    server: { url: "https://api.example.test", token: "tok" },
     name: "sam",
     pollIntervalMs: 60_000,
     configDirs: [join(ccshareDir, "config")],
@@ -52,10 +52,29 @@ describe("TUI App", () => {
     expect(frame).toContain("42%");
     expect(frame).toContain("weekly");
     expect(frame).toContain("68%");
-    // daemon isn't running in the test -> header shows it stopped
+    // daemon isn't running in the test -> header shows it "down" (in red)
     expect(frame).toContain("daemon ");
-    expect(frame).toContain("stopped");
+    expect(frame).toContain("down");
 
+    unmount();
+  });
+});
+
+describe("Root", () => {
+  it("routes an incomplete config (server URL, no token) to onboarding instead of crashing", () => {
+    // Regression: makeViewSource throws without a token, so Root must treat a
+    // token-less config as "not configured" and show the wizard.
+    const incomplete = {
+      server: { url: "https://api.example.test" }, // no token
+      name: "sam",
+      pollIntervalMs: 60_000,
+      configDirs: [join(ccshareDir, "config")],
+      logLevel: "info",
+    } as Config;
+    const { lastFrame, unmount } = render(<Root initialConfig={incomplete} />);
+    const frame = lastFrame() ?? "";
+    // The onboarding wizard is up (its first step), not a crash / the live view.
+    expect(frame).toContain("What is your name?");
     unmount();
   });
 });

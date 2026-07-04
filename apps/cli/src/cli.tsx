@@ -32,22 +32,18 @@ program.action(async () => {
 
 program
   .command("init")
-  .description("required first run: join via shared hosting (two passwords) or self-host a DB")
+  .description("required first run: join the shared ledger with two passwords")
   .option("--reconfigure", "re-run the setup against the same identity")
-  .option("--mode <mode>", "shared|selfhost; skips the mode prompt")
-  .option("--driver <driver>", "self-host: storage driver (libsql|postgres|sqlite)")
-  .option("--url <url>", "self-host: database URL; skips the prompt")
-  .option("--token <token>", "self-host: auth token for a remote database")
   .option("--name <name>", "your name (letters, digits, hyphens); skips the prompt")
   .option(
     "--group-password <password>",
-    "shared: the group's password (prefer env CCSHARE_GROUP_PASSWORD in CI)"
+    "the group's password (prefer env CCSHARE_GROUP_PASSWORD in CI)"
   )
   .option(
     "--member-password <password>",
-    "shared: your member password (prefer env CCSHARE_MEMBER_PASSWORD in CI)"
+    "your member password (prefer env CCSHARE_MEMBER_PASSWORD in CI)"
   )
-  .option("-y, --yes", "auto-confirm the write step (init empty DB / create the group)")
+  .option("-y, --yes", "auto-confirm the write step (create the group)")
   .option("--no-daemon", "don't auto-start the background observer after setup")
   .action(async (opts) => {
     await runInit(opts);

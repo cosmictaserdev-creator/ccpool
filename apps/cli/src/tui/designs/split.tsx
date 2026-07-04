@@ -62,7 +62,7 @@ export function split(
           pal={{ label: P.dim, value: P.cream, accent: P.green }}
         />
       </Box>
-      {model.disconnected ? <Text color={P.red}>ERROR: can't reach the database</Text> : null}
+      {model.alert ? <Text color={P.red}>{model.alert}</Text> : null}
       <Box>
         <Panel title="overall" color={P.orange} width={leftW} height={panelH}>
           <Box marginTop={1} justifyContent="center">

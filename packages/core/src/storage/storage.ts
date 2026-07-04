@@ -9,36 +9,42 @@ import type {
 } from "../types.js";
 
 /**
- * The schema version this CLI understands.
+ * The schema version this build understands.
  *
- * v1 — the baseline: `ccshare_meta` (with the account-binding `accountId` and the
- * change-detection `writeSeq`), `users`, `usage_samples`, `message_usage`,
- * `usage_markers`, `reset_events` (indexed on `at`), created up front by
- * `initializeSchema`. (Redefined pre-production: the retired `budgets` table is
- * gone, `writeSeq` and the reset index are in.)
- *
- * v2 — makes `usage_samples` and `reset_events` idempotent on their natural keys
- * (`(cap, capturedAt)` and `(cap, at)`), so a retried tick can't double-insert
- * them. Before v2 only `message_usage`/`usage_markers` deduped (uuid/id), so an
- * at-least-once re-send (server committed but the response was lost) duplicated
- * samples/resets — polluting the tank trajectory and reset detection. The v2
- * `migrate` step drops any pre-existing duplicates, then adds the unique indexes.
+ * v1 — the relational baseline. One physical database holds every group's ledger;
+ * a `group_id` column on every table (and in the composite keys/indexes) scopes
+ * the rows to a group, so a single Postgres or libSQL database backs the whole
+ * multi-tenant server. Tables: `ccshare_meta` (per group — the account-binding
+ * `accountId`, the change-detection `writeSeq`, `schemaVersion`), `users`,
+ * `usage_samples`, `message_usage`, `usage_markers`, `reset_events`. Samples and
+ * resets dedup on `(group_id, cap, capturedAt)` / `(group_id, cap, at)`, messages
+ * on `(group_id, uuid)`, markers on `(group_id, id)`, so a retried tick can never
+ * double-insert.
  *
  * When a future change needs one, bump this and add an additive, idempotent step
  * to each adapter's `migrate` (nullable columns / `CREATE … IF NOT EXISTS`), per
  * the migration rules in CLAUDE.md.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 1;
+
+/** The group a storage instance with no explicit group is scoped to. */
+export const DEFAULT_GROUP_ID = "default";
 
 /**
  * The one boundary that must stay strict: adapters are interchangeable behind
  * this interface. Async even where local SQLite is synchronous, so a remote
  * adapter fits unchanged. Adapters are dumb — rows in, rows out, no business
  * logic; attribution and view assembly live above this line.
+ *
+ * **Every instance is scoped to one `groupId`** (bound at construction, injected
+ * into every query as `group_id`). All rows a single instance reads or writes
+ * belong to its group; the server opens one instance per group over one shared
+ * database. The interface below is unchanged by that — callers see a single
+ * ledger.
  */
 export interface Storage {
   // lifecycle / setup
-  inspect(): Promise<DbInspection>; // empty | ccshare | foreign
+  inspect(): Promise<DbInspection>; // empty | ccshare (for this group)
   /** Create tables + write ccshare_meta, binding the ledger to `accountId` (§1.5). */
   initializeSchema(accountId?: string | null): Promise<void>;
   /** Claim an unbound ledger for `accountId` (only sets it when currently null). */

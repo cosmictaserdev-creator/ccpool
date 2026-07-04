@@ -14,8 +14,7 @@ beforeEach(() => {
   ccshareDir = mkdtempSync(join(tmpdir(), "ccshare-screens-"));
   process.env.CCSHARE_DIR = ccshareDir;
   cfg = {
-    mode: "selfhost",
-    storage: { driver: "memory", url: "" },
+    server: { url: "https://api.example.test", token: "tok" },
     name: "sam",
     pollIntervalMs: 60_000,
     configDirs: [join(ccshareDir, "config")],

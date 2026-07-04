@@ -138,45 +138,37 @@ export interface SharedView {
 
 // ── storage inspection ────────────────────────────────────────────────────────
 
-/** Result of inspecting a target database before init. */
+/**
+ * Result of inspecting one group's slice of the shared database. Only the server
+ * ever opens a database, and always its own; the group is set up when its
+ * `ccshare_meta` row exists ("ccshare"), otherwise it's "empty" and can be
+ * initialized.
+ */
 export type DbInspection =
-  | { kind: "empty" } // zero tables -> prompt to init
+  | { kind: "empty" } // this group has no ledger yet -> initialize it
   | {
-      kind: "ccshare"; // ours -> join (maybe migrate)
+      kind: "ccshare"; // this group's ledger exists -> use it (maybe migrate)
       schemaVersion: number;
       /**
-       * The Claude account this ledger is bound to (`oauthAccount.accountUuid`),
-       * or null when unbound (pre-v2 DB, or created before onboarding). A daemon
-       * observing a *different* account must not write here — see §1.5.
+       * The Claude account this group's ledger is bound to
+       * (`oauthAccount.accountUuid`), or null when unbound (created before
+       * onboarding). A tick observed under a *different* account must not write
+       * here — see §1.5.
        */
       accountId: string | null;
-    }
-  | { kind: "foreign" }; // has tables, not ours -> refuse
+    };
 
 // ── config ────────────────────────────────────────────────────────────────────
 
-export type StorageDriver = "libsql" | "postgres" | "sqlite" | "memory";
-
-export interface StorageConfig {
-  driver: StorageDriver;
-  url: string;
-  /** Token lives in the OS keychain or a 0600 file, never in committed config. */
-  token?: string;
-}
-
 /**
- * How this machine reaches the shared ledger:
- * - `shared`   — through the hosted HTTP server (two-password auth, bearer token).
- * - `selfhost` — directly against a storage adapter URL the group runs itself.
+ * The name a storage adapter reports for itself. Only the server ever opens a
+ * database; the CLI always reaches the ledger over HTTP.
  */
-export type Mode = "shared" | "selfhost";
+export type StorageDriver = "libsql" | "postgres" | "memory";
 
 export interface Config {
-  mode: Mode;
-  /** selfhost only: the adapter this machine talks to directly. */
-  storage?: StorageConfig;
-  /** shared only: the ccshare server. The bearer token lives in the 0600 token file. */
-  server?: { url: string; token?: string };
+  /** The ccshare server. The bearer token lives in the 0600 token file, never here. */
+  server: { url: string; token?: string };
   /** Active user; alphanumeric + hyphens. Changeable with `config set name`. */
   name: string;
   pollIntervalMs: number;

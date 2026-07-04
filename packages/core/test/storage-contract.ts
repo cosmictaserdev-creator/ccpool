@@ -10,8 +10,11 @@ export interface ContractHarness {
   name: string;
   /** An empty, uninitialized database. */
   fresh(): Promise<Storage>;
-  /** A database that already holds another project's tables (optional). */
-  foreign?(): Promise<Storage>;
+  /**
+   * Two Storage instances scoped to different groups over ONE physical database
+   * (optional). Proves the `group_id` scoping isolates groups' ledgers.
+   */
+  pair?(): Promise<[Storage, Storage]>;
 }
 
 export function runStorageContract(h: ContractHarness): void {
@@ -33,11 +36,37 @@ export function runStorageContract(h: ContractHarness): void {
       expect(await s.inspect()).toMatchObject({ kind: "ccshare" });
     });
 
-    if (h.foreign) {
-      it("reports foreign and refuses to initialize over it", async () => {
-        const s = await open(h.foreign!());
-        expect(await s.inspect()).toEqual({ kind: "foreign" });
-        await expect(s.initializeSchema()).rejects.toThrow();
+    if (h.pair) {
+      it("isolates two groups sharing one physical database by group_id", async () => {
+        const [a, b] = await h.pair!();
+        opened.push(a, b);
+
+        // Group A is set up first; from B's view the shared tables exist but B has
+        // no ledger yet — it reads as empty and can be initialized independently.
+        await a.initializeSchema("acc-a");
+        expect(await b.inspect()).toEqual({ kind: "empty" });
+        await b.initializeSchema("acc-b");
+        expect(await a.inspect()).toMatchObject({ accountId: "acc-a" });
+        expect(await b.inspect()).toMatchObject({ accountId: "acc-b" });
+
+        await a.upsertUser("alice");
+        await a.recordBatch(
+          batchOf({
+            samples: [mkSample("five_hour", 42, "2026-06-29T10:00:00.000Z")],
+            messages: [mkMsg("a-msg", "alice", 5)],
+          })
+        );
+
+        // None of A's rows leak into B.
+        expect(await b.getUsers()).toEqual([]);
+        expect(await b.getUsageSamplesSince("2000-01-01T00:00:00.000Z")).toEqual([]);
+        expect(await b.getMessageUsageSince("2000-01-01T00:00:00.000Z")).toEqual([]);
+        // A change in A must not move B's change token.
+        const bToken = await b.getChangeToken();
+        await a.upsertUser("bob");
+        expect(await b.getChangeToken()).toBe(bToken);
+        // A still sees its own rows.
+        expect((await a.getUsers()).map((u) => u.name)).toEqual(["alice", "bob"]);
       });
     }
 

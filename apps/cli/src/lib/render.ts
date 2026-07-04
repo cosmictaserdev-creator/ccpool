@@ -98,18 +98,19 @@ export function renderContent(vm: ViewModel, now: number = Date.now()): string[]
 /** Source + warning notes — the footer row. */
 export function renderFooter(vm: ViewModel, now: number = Date.now()): string[] {
   const notes: string[] = [];
+  if (vm.loggedOut) notes.push("logged out — run `ccshare init` to sign back in");
   if (vm.tokenExpired) notes.push("waiting for Claude Code to refresh auth");
   if (!vm.daemonRunning) notes.push("daemon not running — run `ccshare daemon start`");
-  if (vm.stale) notes.push("database unreachable — showing last-known");
+  if (vm.stale) notes.push("can't reach the ccshare server — showing last-known");
   if (vm.source === "live") notes.push("live poll — start the daemon to record history");
   const freshness =
-    vm.source === "db"
-      ? `source: shared db · local state ${formatAge(vm.updatedAt, now)}`
-      : vm.source === "state"
-        ? `source: local state · ${formatAge(vm.updatedAt, now)}`
-        : vm.source === "live"
-          ? "source: live poll"
-          : "no data yet";
+    vm.source === "state"
+      ? `local state · ${formatAge(vm.updatedAt, now)}`
+      : vm.source === "live"
+        ? "live poll"
+        : vm.source === "none"
+          ? "no data yet"
+          : `synced ${formatAge(vm.updatedAt, now)}`;
   return [freshness, ...notes.map((n) => `  · ${n}`)];
 }
 

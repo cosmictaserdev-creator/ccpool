@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import type { GroupRow, MemberRow, Registry } from "./deps.js";
 
 /**
- * The server-owned registry tables (groups / members / tokens) in the server
- * database's default schema. These live OUTSIDE the `Storage` interface — the
- * per-group ledgers (in their own schemas) never know tenancy exists.
+ * The Postgres implementation of the server-owned registry tables (groups /
+ * members / tokens). These live OUTSIDE the `Storage` interface, in the same
+ * database as the per-group ledgers (which carry a `group_id` referencing
+ * `groups(id)`); the ledgers never know tenancy exists.
  */
 export class PgRegistry implements Registry {
   private sql: Sql;
@@ -21,7 +22,6 @@ export class PgRegistry implements Registry {
         id TEXT PRIMARY KEY,
         "accountId" TEXT UNIQUE NOT NULL,
         "passwordHash" TEXT NOT NULL,
-        "schemaName" TEXT UNIQUE NOT NULL,
         "createdAt" TEXT NOT NULL)`;
       await tx`CREATE TABLE IF NOT EXISTS members (
         id TEXT PRIMARY KEY,
@@ -41,23 +41,21 @@ export class PgRegistry implements Registry {
 
   async getGroupByAccount(accountId: string): Promise<GroupRow | null> {
     const rows = await this.sql<GroupRow[]>`
-      SELECT id, "accountId", "passwordHash", "schemaName", "createdAt"
+      SELECT id, "accountId", "passwordHash", "createdAt"
       FROM groups WHERE "accountId" = ${accountId}`;
     return rows[0] ?? null;
   }
 
   async createGroup(accountId: string, passwordHash: string): Promise<GroupRow> {
-    const id = randomUUID();
     const g: GroupRow = {
-      id,
+      id: randomUUID(),
       accountId,
       passwordHash,
-      schemaName: "grp_" + id.replaceAll("-", ""),
       createdAt: new Date().toISOString(),
     };
     // The UNIQUE("accountId") constraint is the create-race arbiter.
-    await this.sql`INSERT INTO groups (id, "accountId", "passwordHash", "schemaName", "createdAt")
-      VALUES (${g.id}, ${g.accountId}, ${g.passwordHash}, ${g.schemaName}, ${g.createdAt})`;
+    await this.sql`INSERT INTO groups (id, "accountId", "passwordHash", "createdAt")
+      VALUES (${g.id}, ${g.accountId}, ${g.passwordHash}, ${g.createdAt})`;
     return g;
   }
 
@@ -96,13 +94,12 @@ export class PgRegistry implements Registry {
         gid: string;
         accountId: string;
         groupHash: string;
-        schemaName: string;
         groupCreatedAt: string;
       }[]
     >`SELECT m.id AS "memberId", m."groupId" AS "groupId", m.name,
              m."passwordHash" AS "memberHash", m."createdAt" AS "memberCreatedAt",
              g.id AS gid, g."accountId" AS "accountId", g."passwordHash" AS "groupHash",
-             g."schemaName" AS "schemaName", g."createdAt" AS "groupCreatedAt"
+             g."createdAt" AS "groupCreatedAt"
       FROM tokens t
       JOIN members m ON m.id = t."memberId"
       JOIN groups g ON g.id = m."groupId"
@@ -121,7 +118,6 @@ export class PgRegistry implements Registry {
         id: r.gid,
         accountId: r.accountId,
         passwordHash: r.groupHash,
-        schemaName: r.schemaName,
         createdAt: r.groupCreatedAt,
       },
     };

@@ -1,0 +1,96 @@
+import { afterAll, describe, expect, it } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AuthResponse, SharedView } from "@ccshare/core";
+import { makeApp } from "../src/app.js";
+import { makeServerDeps, resolveServerBackend } from "../src/backend.js";
+import type { ServerDeps } from "../src/deps.js";
+
+/**
+ * Full server on libSQL (a throwaway `file:` database — no external infra). Proves
+ * the libSQL adapter serves the same multi-tenant surface as Postgres: registry
+ * tables + per-group ledgers in ONE database, scoped by `group_id`.
+ */
+describe("server on libSQL (file:)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ccshare-srv-libsql-"));
+  // A nested, not-yet-created subdir: the registry must create the parent dir and
+  // normalize the URL before opening it (regression: `file:~/…` / missing dir).
+  const url = `file:${join(dir, "nested", "server.db")}`;
+  let deps: ServerDeps;
+
+  afterAll(async () => {
+    await deps?.registry.close();
+    await deps?.tenants.close();
+  });
+
+  it("resolves libsql from a file: DATABASE_URL", () => {
+    const backend = resolveServerBackend({ DATABASE_URL: url } as NodeJS.ProcessEnv);
+    expect(backend.driver).toBe("libsql");
+  });
+
+  it("creates two groups, ingests, and isolates their ledgers by group_id", async () => {
+    deps = makeServerDeps({ driver: "libsql", url });
+    await deps.registry.ensure();
+    const app = makeApp(deps);
+
+    const mk = async (account: string, name: string): Promise<AuthResponse> => {
+      const res = await app.request("/v1/groups", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accountId: account,
+          groupPassword: "group-pass-1",
+          memberName: name,
+          memberPassword: "member-pass-1",
+        }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json()) as AuthResponse;
+    };
+
+    const a = await mk("acc-a", "alice");
+    const b = await mk("acc-b", "bob");
+
+    const ingest = await app.request("/v1/ingest", {
+      method: "POST",
+      headers: { authorization: `Bearer ${a.token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        at: new Date().toISOString(),
+        accountId: "acc-a",
+        samples: [
+          { cap: "five_hour", pct: 37, resetsAt: null, capturedAt: new Date().toISOString() },
+        ],
+        resets: [],
+        messages: [
+          {
+            uuid: "ls-m1",
+            user: "spoofed",
+            timestamp: new Date().toISOString(),
+            model: null,
+            inputTokens: 1,
+            outputTokens: 2,
+            cacheCreationTokens: 3,
+            cacheReadTokens: 4,
+          },
+        ],
+        markers: [],
+      }),
+    });
+    expect(ingest.status).toBe(204);
+
+    // A sees its own row, stamped with the authenticated member.
+    const aView = (await (
+      await app.request("/v1/view", { headers: { authorization: `Bearer ${a.token}` } })
+    ).json()) as SharedView;
+    expect(aView.samples[0]?.pct).toBe(37);
+    expect(aView.members.map((m) => m.user)).toEqual(["alice"]);
+
+    // B's ledger is empty — no leakage across group_id.
+    const bView = (await (
+      await app.request("/v1/view", { headers: { authorization: `Bearer ${b.token}` } })
+    ).json()) as SharedView;
+    expect(bView.samples).toEqual([]);
+    expect(bView.users.map((u) => u.name)).toEqual(["bob"]);
+  }, 30_000);
+});

@@ -1,4 +1,4 @@
-import { DISCONNECTED_USER, type DesignMember } from "../../lib/design-model.js";
+import { type DesignMember } from "../../lib/design-model.js";
 export { heat } from "../../lib/heat.js";
 
 /** Color palette for the TUI designs. Distinct from the status renderer's copy
@@ -24,6 +24,6 @@ export const P = {
 export const M = { hi: "#f0e8c8", mid: "#a39d8e", lo: "#6a665d", track: "#322f2b" } as const;
 
 const PERSON = [P.blue, P.green, P.pink, P.coral, P.purple, P.amber, P.cyan];
-/** Stable per-row color; `unknown` and the disconnected `xxxx` rows are faint gray. */
+/** Stable per-row color; the reserved `unknown` row is faint gray. */
 export const personColor = (m: DesignMember, i: number): string =>
-  m.name === "unknown" || m.name === DISCONNECTED_USER ? P.faint : PERSON[i % PERSON.length]!;
+  m.name === "unknown" ? P.faint : PERSON[i % PERSON.length]!;

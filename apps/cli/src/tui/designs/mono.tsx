@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { DesignMember, DesignModel } from "../../lib/design-model.js";
-import { M } from "./palette.js";
+import { M, P } from "./palette.js";
 import { Leader, lpad, pad, pct, scrollLabel, share, tok } from "./parts.js";
 
 // 3 — MONO: dotted leader lines (monochrome), overall + members
@@ -42,14 +42,17 @@ export function mono(
           members <Text color={M.hi}>{model.members.length}</Text> ({model.active} active)
         </Text>
         <Text color={M.lo}>
-          source <Text color={M.hi}>{model.sourceLabel}</Text>
-        </Text>
-        <Text color={M.lo}>
           synced <Text color={M.hi}>{model.sync}</Text>
         </Text>
-        <Text color={M.lo}>
-          daemon <Text color={M.hi}>{model.daemonRunning ? "running" : "stopped"}</Text>
-        </Text>
+        {/* Only surfaced when down — the TUI is bringing it back up (§App). */}
+        {!model.daemonRunning ? (
+          <Text color={M.lo}>
+            daemon{" "}
+            <Text color={P.red} bold>
+              down
+            </Text>
+          </Text>
+        ) : null}
       </Box>
       <Text color={M.lo}>overall</Text>
       {model.caps.map((c) => (
@@ -67,7 +70,7 @@ export function mono(
         <Text color={M.lo}>members</Text>
         <Text color={M.mid}>{scrollLabel(off, visible, model.members.length)}</Text>
       </Box>
-      {model.disconnected ? <Text color={M.hi}>ERROR: can't reach the database</Text> : null}
+      {model.alert ? <Text color={P.red}>{model.alert}</Text> : null}
       <Text color={M.lo}>
         {pad(" # name", w - rightW)}
         {headRight}

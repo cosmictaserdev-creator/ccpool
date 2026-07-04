@@ -65,7 +65,7 @@ export function overview(
         </Text>
         <Text color={P.dim}>{scrollLabel(off, visible, model.members.length)}</Text>
       </Box>
-      {model.disconnected ? <Text color={P.red}>ERROR: can't reach the database</Text> : null}
+      {model.alert ? <Text color={P.red}>{model.alert}</Text> : null}
       <Box
         width={inner}
         flexDirection="column"

@@ -16,13 +16,10 @@ if (url) {
     return { url: u.toString(), schema };
   };
 
-  const createSchema = async (schema: string, withForeignTable = false) => {
+  const createSchema = async (schema: string) => {
     const pg = (await import("postgres")).default;
     const admin = pg(url);
     await admin.unsafe(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-    if (withForeignTable) {
-      await admin.unsafe(`CREATE TABLE ${schema}.other_app (id INTEGER PRIMARY KEY)`);
-    }
     await admin.end();
   };
 
@@ -33,10 +30,13 @@ if (url) {
       await createSchema(schema);
       return new PostgresStorage(u);
     },
-    foreign: async () => {
+    pair: async () => {
       const { url: u, schema } = withSchema(url);
-      await createSchema(schema, true);
-      return new PostgresStorage(u);
+      await createSchema(schema);
+      return [
+        new PostgresStorage(u, { groupId: "grp-a" }),
+        new PostgresStorage(u, { groupId: "grp-b" }),
+      ];
     },
   });
 } else {

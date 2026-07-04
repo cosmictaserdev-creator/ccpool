@@ -74,12 +74,10 @@ passwords) or a database you run yourself — and the tool shows:
   [pnpm](https://pnpm.io)
 - Claude Code installed and signed in on each machine (ccshare reads the token it
   already stored — it never logs you in)
-- A place for the shared ledger. Pick one at init:
-  - **shared hosting** (default, zero setup): the ccshare server hosts your
-    group's ledger; you only choose two passwords
-  - **self-host**: your own database — a local file (`file:./ccshare.db`), a free
-    hosted [Turso](https://turso.tech) / libSQL database (`libsql://…` plus an
-    auth token), or a Postgres URL
+- Nothing else to set up: every machine reaches the shared ledger over HTTP through
+  the ccshare server. You only choose two passwords at init — no database to run,
+  no credentials to hand out. (A group can point at its own self-hosted server with
+  `CCSHARE_SERVER_URL`; see [Self-hosting the server](#self-hosting-the-server).)
 
 ### 2. Build the CLI
 
@@ -104,10 +102,8 @@ ccshare        # unconfigured → a guided onboarding wizard; configured → the
 ```
 
 Bare `ccshare` opens a TUI. On a fresh machine it walks you through onboarding one
-step at a time: choose a **name** (letters, digits, hyphens), then how the group's
-data is hosted.
-
-**Shared hosting** (the default) asks for two passwords and nothing else:
+step at a time: choose a **name** (letters, digits, hyphens), then two passwords —
+and nothing else:
 
 - the **group password** — everyone in the group uses the same one; knowing it is
   what lets a machine join the group at all;
@@ -118,26 +114,15 @@ The group itself is tied to the Claude account you're signed into (resolved
 automatically — never typed). The first person to init creates the group (after a
 confirmation); everyone after joins it with the group password.
 
-**Self-host** keeps the classic flow: everyone points at the **same** database
-URL — that URL is the join key. The wizard tests the connection and inspects the
-database; on an empty database it asks before creating tables, and if the database
-already contains another project it refuses rather than mixing in — ccshare needs
-its own clean, dedicated database.
-
 Once configured, `ccshare` opens straight to the live view (press **c** there to
-reconfigure). The config screen's **backend** row switches between shared hosting
-and self-host either way — pick a mode, then enter the two passwords (shared) or a
-database URL (self-host); ccshare restarts the daemon onto the new backend. The
-same flow is scriptable through the `ccshare init` flag command — every prompt has
-a flag, so it runs non-interactively:
+reconfigure); reconfiguring re-runs the same two-password join and restarts the
+daemon. The flow is scriptable through the `ccshare init` flag command — every
+prompt has a flag, so it runs non-interactively:
 
 ```bash
-# shared hosting (prefer the env vars in CI — flags leak into shell history)
+# prefer the env vars in CI — flags leak into shell history
 CCSHARE_GROUP_PASSWORD=… CCSHARE_MEMBER_PASSWORD=… \
-  ccshare init --mode shared --name sam --yes
-
-# self-host
-ccshare init --mode selfhost --driver libsql --url "file:./ccshare.db" --name sam --yes
+  ccshare init --name sam --yes
 ```
 
 Check what ccshare sees at any time (changes nothing):
@@ -221,28 +206,34 @@ ccshare config get                  # show current config
 
 Names are just labels, not machines (letters, digits, and hyphens, up to 32
 chars) — several people can share a machine and hand off by changing the name.
-Whoever's name is set when activity is ingested gets credited. In self-host the
-running daemon picks up the new name on its next tick; in shared hosting a hand-off
-asks for the target member's password (names are protected) and mints a fresh
-token, so ccshare restarts the daemon for you to pick it up. Adding a brand-new
-member goes through `ccshare init`.
+Whoever's name is set when activity is ingested gets credited. A hand-off asks for
+the target member's password (names are protected) and mints a fresh token, so
+ccshare restarts the daemon for you to pick it up. Adding a brand-new member goes
+through `ccshare init`.
 
 ccshare deliberately has **no budgets or quotas** — it reports the reality of who
 used what and leaves it to the group to coordinate how much anyone should use.
 
 ---
 
-## 🖥️ Running your own server (optional)
+## 🖥️ Self-hosting the server
 
-The shared-hosting server is open too. It's multi-tenant (many groups on one
-server, each group's ledger isolated in its own Postgres schema) and needs only a
-Postgres URL:
+The server is open too, and a group can run its own instead of the default host.
+It's multi-tenant (many groups on one server, each group's ledger isolated by a
+`group_id` in one shared database) and runs on **Postgres or libSQL** — one
+`DATABASE_URL`:
 
 ```bash
+# Postgres
 DATABASE_URL=postgres://user:pass@host/db PORT=8787 node apps/server/dist/index.js
+
+# libSQL (a local file, or libsql://… + CCSHARE_DB_AUTH_TOKEN for Turso)
+DATABASE_URL=file:/var/lib/ccshare/server.db PORT=8787 node apps/server/dist/index.js
 ```
 
-Point CLIs at it with `CCSHARE_SERVER_URL=https://your-host` when running
+The driver is inferred from `DATABASE_URL` (a `postgres://` URL is Postgres,
+anything else is libSQL); `CCSHARE_DB_DRIVER=postgres|libsql` forces it. Point CLIs
+at your server with `CCSHARE_SERVER_URL=https://your-host` when running
 `ccshare init`. Run it behind TLS — the CLI refuses plain `http://` for anything
 but localhost, because the bearer token rides on every request. Passwords are
 stored as salted scrypt hashes and tokens as sha256 hashes; the server never keeps
@@ -253,18 +244,18 @@ a usable credential.
 ```
 packages/
   core/               # runtime-agnostic domain logic: Storage + IngestSink/ViewSource
-  storage-libsql/     # self-host adapter (file: and libsql://)
-  storage-postgres/   # adapter for self-hosters and the server (schema per group)
+  storage-libsql/     # libSQL adapter — server-side (file: and libsql://)
+  storage-postgres/   # Postgres adapter — server-side
   daemon/             # the background observer (poll + jsonl + state.json)
 apps/
-  cli/                # Commander + Ink CLI
-  server/             # multi-tenant shared-hosting server (Hono + Postgres)
+  cli/                # Commander + Ink CLI (HTTP client only — never opens a DB)
+  server/             # multi-tenant server (Hono; Postgres or libSQL)
   web/                # marketing site (Astro)
 ```
 
 Config lives in `~/.ccshare/` (`config.json`, the per-account `state.json`, logs,
-and a `0600` token file holding the DB token or the server bearer). Override the
-location with `CCSHARE_DIR`.
+and a `0600` token file holding the server bearer). Override the location with
+`CCSHARE_DIR`.
 
 ## 🧪 Development
 

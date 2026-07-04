@@ -1,21 +1,17 @@
 import {
   HttpIngestSink,
   HttpViewSource,
-  StorageIngestSink,
-  StorageViewSource,
   type Config,
   type IngestSink,
   type ViewSource,
 } from "@ccshare/core";
-import { makeStorage } from "./storage.js";
 import { DEFAULT_SERVER_URL } from "./links.js";
 
 /**
- * The composition seam above `makeStorage`: commands never touch raw Storage for
- * reading/writing the ledger — the daemon writes through an {@link IngestSink},
- * views read through a {@link ViewSource}. Selfhost wraps the local adapter;
- * shared mode talks to the ccshare server. Constructors don't connect, so these
- * are safe to call eagerly.
+ * The composition seam: commands never touch a database. The daemon writes
+ * through an {@link IngestSink} and views read through a {@link ViewSource}, both
+ * of which talk to the ccshare server over HTTP. Constructors don't connect, so
+ * these are safe to call eagerly.
  */
 
 /** env override (dev / self-hosted server) → saved config → the hardcoded host. */
@@ -44,26 +40,20 @@ export function validateServerUrl(url: string): string | null {
   return `server URL must be http(s), got ${parsed.protocol}`;
 }
 
-function sharedCreds(cfg: Config): { url: string; token: string } {
+function creds(cfg: Config): { url: string; token: string } {
   const token = cfg.server?.token;
   if (!token) {
-    throw new Error("shared-hosting setup is incomplete (no token) — re-run `ccshare init`");
+    throw new Error("ccshare setup is incomplete (no token) — re-run `ccshare init`");
   }
   return { url: resolveServerUrl(cfg), token };
 }
 
 export function makeIngestSink(cfg: Config): IngestSink {
-  if (cfg.mode === "shared") {
-    const { url, token } = sharedCreds(cfg);
-    return new HttpIngestSink(url, token);
-  }
-  return new StorageIngestSink(makeStorage(cfg));
+  const { url, token } = creds(cfg);
+  return new HttpIngestSink(url, token);
 }
 
 export function makeViewSource(cfg: Config): ViewSource {
-  if (cfg.mode === "shared") {
-    const { url, token } = sharedCreds(cfg);
-    return new HttpViewSource(url, token);
-  }
-  return new StorageViewSource(makeStorage(cfg));
+  const { url, token } = creds(cfg);
+  return new HttpViewSource(url, token);
 }

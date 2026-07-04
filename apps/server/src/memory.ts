@@ -13,6 +13,8 @@ export class MemoryRegistry implements Registry {
   private members = new Map<string, MemberRow>(); // by id
   private tokens = new Map<string, string>(); // tokenHash -> memberId
 
+  async ensure(): Promise<void> {}
+
   async getGroupByAccount(accountId: string): Promise<GroupRow | null> {
     for (const g of this.groups.values()) if (g.accountId === accountId) return g;
     return null;
@@ -27,7 +29,6 @@ export class MemoryRegistry implements Registry {
       id,
       accountId,
       passwordHash,
-      schemaName: "grp_" + id.replaceAll("-", ""),
       createdAt: new Date().toISOString(),
     };
     this.groups.set(id, g);

@@ -65,9 +65,8 @@ function header(m: DesignModel, width: number, paint: Paint): string[] {
     paint("account ", HEX.dim) +
       paint(m.account, HEX.cream) +
       paint(`  ·  ${m.members.length} members (${m.active} active)`, HEX.dim),
-    paint(m.sourceLabel, HEX.green) +
-      paint(` · synced ${m.sync} · daemon `, HEX.dim) +
-      paint(m.daemonRunning ? "running" : "stopped", m.daemonRunning ? HEX.green : HEX.faint),
+    paint(`synced ${m.sync}`, HEX.dim) +
+      (m.daemonRunning ? "" : paint("  ·  daemon ", HEX.dim) + paint("down", HEX.red, true)),
   ];
   if (width >= 56)
     return CLAWD.map((art, i) => paint(padEnd(art, 9), HEX.orange) + "  " + (lines[i] ?? ""));
@@ -153,6 +152,7 @@ export function renderStatusLines(
   const width = Math.max(40, opts.width ?? 70);
   const paint = makePaint(opts.color ?? false);
   const lines = [...header(model, width, paint)];
+  if (model.alert) lines.push("", paint(model.alert, HEX.red, true));
   if (model.caps.length === 0) {
     lines.push("", paint("no data yet — start the daemon with `ccshare daemon start`", HEX.dim));
   } else {

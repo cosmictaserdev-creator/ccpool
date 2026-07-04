@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import {
+  ApiRequestError,
   isTokenExpired,
   pollUsage,
   readCredentials,
@@ -28,6 +29,8 @@ export interface ViewModel {
   source: ViewOrigin;
   /** Backend unreachable — showing last-known numbers. */
   stale: boolean;
+  /** The server rejected our bearer (unknown/revoked token) — we're logged out. */
+  loggedOut: boolean;
   daemonRunning: boolean;
   tokenExpired: boolean;
   /** This machine's Claude account differs from the ledger's — daemon halted writes (§1.5). */
@@ -70,8 +73,8 @@ function readState(stateFile: string): LocalState | null {
  * Assemble the live view: prefer the shared backend (everyone-included), fall
  * back to the local `state.json` (instant, no network), and finally to a
  * one-shot live poll so there's always something to show before the daemon's
- * first write. The heavy work lives behind `source` — a 2s refresh costs one
- * change-token read (selfhost) or a 304 (shared) when nothing changed.
+ * first write. The heavy work lives behind `source` — a 2s refresh costs a
+ * bodyless 304 from the server when nothing changed.
  */
 export async function gatherView(cfg: Config, source: ViewSource): Promise<ViewModel> {
   const configDir = configDirOf(cfg);
@@ -90,14 +93,19 @@ export async function gatherView(cfg: Config, source: ViewSource): Promise<ViewM
   let members: MemberSummary[] = [];
   let users: User[] = [];
   let stale = false;
+  let loggedOut = false;
   try {
     const view = await source.fetchView();
     dbSamples = view.samples;
     shares = view.shares;
     members = view.members;
     users = view.users;
-  } catch {
-    stale = true;
+  } catch (e) {
+    // A 401 isn't "unreachable" — the server reached us and rejected the bearer
+    // (the token is unknown or was revoked, e.g. the ledger was reset). That's a
+    // logged-out state, not a network problem, and the views must say so.
+    if (e instanceof ApiRequestError && e.status === 401) loggedOut = true;
+    else stale = true;
   }
 
   let samples = dbSamples;
@@ -124,6 +132,7 @@ export async function gatherView(cfg: Config, source: ViewSource): Promise<ViewM
     users,
     source: origin,
     stale,
+    loggedOut,
     daemonRunning,
     tokenExpired: state?.account.tokenExpired ?? false,
     accountConflict: state?.account.conflict ?? false,

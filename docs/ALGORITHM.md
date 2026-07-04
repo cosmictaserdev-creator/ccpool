@@ -33,21 +33,21 @@ the request path. Two facts drive the entire design:
                       │            │                         │                              │
                       │     state.json (atomic)      IngestSink.ingest(ONE batch/tick)      │
                       └────────────┼─────────────────────────┼─────────────────────────────┘
-                                   │            ┌────────────┴────────────┐
-                                   │        selfhost                   shared
-                                   │     shared DB (adapter)     ccshare server (HTTP)
-                                   │            │                  one schema per group
-                                   │            └────────────┬────────────┘
+                                   │                          │  HTTP
+                                   │                 ccshare server (§13)
+                                   │            Postgres | libSQL — one shared DB,
+                                   │            every row scoped by group_id
+                                   │                          │
                   statusline ◄─────┘    tui / status ◄─ ViewSource.fetchView() → SharedView
                   (reads state only)    (computeSharedView = attributeShares + summarizeMembers,
                                          cached by change token; recomputed only on change)
 ```
 
-No process talks to another process. The contract is **files plus one backend**:
-the daemon writes `state.json` and sends each tick as one `IngestSink` batch;
-readers pull the precomputed `SharedView` through a `ViewSource`. The backend is
-either a database the group hosts itself ("selfhost") or the multi-tenant ccshare
-server ("shared" — see §13).
+No process talks to another process. The contract is **files plus the server**:
+the daemon writes `state.json` and sends each tick as one `IngestSink` batch over
+HTTP; readers pull the precomputed `SharedView` through a `ViewSource`. The
+client never opens a database — the multi-tenant ccshare server owns the only one
+(§13).
 
 ---
 
@@ -133,31 +133,27 @@ to the same ledger, `usage_samples` would interleave two unrelated tanks — the
 attribution baseline (`win[0].pct`), the target (`win[last].pct`), and reset
 detection would all read garbage. Nothing about a random `projectId` catches that.
 
-So the ledger is **bound to an account**. `ccshare_meta.accountId` records the
-`accountUuid` — the **UUID, never the email** (email is only a display label, and
-can even be absent). The binding is enforced at two points:
+So the group's ledger is **bound to an account**. `ccshare_meta.accountId` records
+the `accountUuid` — the **UUID, never the email** (email is only a display label,
+and can even be absent). The binding is enforced at two points:
 
-- **`init`** resolves the local `accountUuid`. On an _empty_ DB it writes the binding
-  at creation. On an existing _ccshare_ DB it **refuses** (like `foreign`) when the
-  DB's bound account differs from the local one, before any migrate or write. A DB
-  that is still _unbound_ (created before onboarding) is **claimed** for the local
-  account on join.
-- **The daemon** reads the binding once at startup. Every tick it compares the freshly
-  resolved local account; on a mismatch it **halts all ledger writes** (samples,
+- **The server** (§13) binds a group at creation: `POST /v1/groups` _requires_ a
+  hydrated account, so there is no unbound state to claim. `/v1/ingest` answers
+  **409 `account-conflict`** — writing nothing — when a tick's `accountId` doesn't
+  match the group's.
+- **The daemon** reads the binding once at startup (`sink.bootstrap()` returns the
+  group's account). Every tick it compares the freshly resolved local account; on a
+  mismatch — or a 409 from the server — it **halts all ledger writes** (samples,
   resets, messages) and flags `account.conflict` in `state.json`, which the views
   surface as the loudest footnote. It still polls, so the local user keeps seeing
   _their own_ tank — the shared ledger just stays clean.
 
 Only a **hydrated** (onboarded) account has a real `accountUuid`; an unhydrated local
-account (the `user-<hash>` fallback) never triggers a conflict and never binds — the
-binding is claimed later, one-way (`null → accountUuid`), so onboarding can't trip a
-false mismatch.
-
-In **shared hosting** (§13) the same rule is enforced server-side: a group is a
-ledger bound at creation (creating one _requires_ a hydrated account, so there is no
-unbound state to claim), and `/v1/ingest` answers **409 `account-conflict`** —
-writing nothing — when a tick's `accountId` doesn't match the group's. The daemon
-maps that 409 onto the same halt-and-flag behavior.
+account (the `user-<hash>` fallback) never triggers a conflict, and a tick with a
+null `accountId` is accepted (the authenticated member can only write into their own
+group), so onboarding can't trip a false mismatch. The `accountId` column stays
+nullable so the storage layer keeps the one-way `null → accountUuid` claim (via
+`bindAccount`) available, even though the server always binds at creation.
 
 ---
 
@@ -408,8 +404,8 @@ Details worth noting:
 - A **sample is recorded every tick**, even if the tank didn't change. That dense
   trajectory is what attribution (§7) needs to align tank rises with activity.
 - Everything observed lands in **one `TickBatch`** and one `sink.ingest` call —
-  one DB transaction in selfhost mode, one `POST /v1/ingest` in shared mode. The
-  batch also bumps the ledger's change token exactly once (§8.5).
+  one `POST /v1/ingest`, which the server persists as one DB transaction. The batch
+  also bumps that group's change token exactly once (§8.5).
 - A **failed ingest keeps the batch** and merges it into the next tick's (bounded,
   newest rows win), so a transient outage never silently drops transcript rows —
   messages and markers are idempotent on uuid/id, so the re-send can't double-count.
@@ -420,9 +416,10 @@ Details worth noting:
   ingested this tick _and_ this machine produced Code activity within the last few
   minutes — the daemon's local view of a lagged/uncaptured rise it can honestly
   claim for its user (§7). The whole batch is dropped on an account conflict (§1.5).
-- Startup runs `sink.bootstrap()`: it heals the schema (selfhost), reports the
-  ledger's bound account, and seeds `prev` with the latest stored samples so a
-  reset that happened while the daemon was down is caught on the first poll.
+- Startup runs `sink.bootstrap()`: it reports the group's bound account and seeds
+  `prev` with the latest stored samples (over HTTP: `GET /v1/bootstrap`), so a reset
+  that happened while the daemon was down is caught on the first poll. The server
+  heals/migrates the group's schema on its side.
 
 ### The run loop — jitter and backoff
 
@@ -775,27 +772,30 @@ members
 
 Two boundaries stack here. The **outer** one is what commands compose
 (`apps/cli/src/lib/backend.ts`): the daemon writes through an `IngestSink`, views
-read through a `ViewSource`, and the config's `mode` picks the implementation —
+read through a `ViewSource`. The client always speaks HTTP to the server — there is
+no other implementation to pick:
 
 ```ts
 function makeIngestSink(cfg: Config): IngestSink {
-  if (cfg.mode === "shared") return new HttpIngestSink(serverUrl, bearer); // §13
-  return new StorageIngestSink(makeStorage(cfg));
+  return new HttpIngestSink(serverUrl, bearer); // §13
 }
 function makeViewSource(cfg: Config): ViewSource {
-  if (cfg.mode === "shared") return new HttpViewSource(serverUrl, bearer); // §13
-  return new StorageViewSource(makeStorage(cfg)); // watermark-cached (§8.5)
+  return new HttpViewSource(serverUrl, bearer); // §13, watermark-cached (§8.5)
 }
 ```
 
-The **inner** boundary is `Storage` — still deliberately dumb (rows in, rows out,
-no business logic), chosen from config in a single place (`makeStorage`:
-libsql/sqlite → `LibsqlStorage`, postgres → `PostgresStorage`, memory →
-`MemoryStorage`):
+The **inner** boundary is `Storage` — used only on the **server**. It's still
+deliberately dumb (rows in, rows out, no business logic), and its two adapters
+(`LibsqlStorage`, `PostgresStorage`, plus `MemoryStorage` for tests) implement the
+same relational model. Every instance is **scoped to one `groupId`**, bound at
+construction and injected into every query as a `group_id` column, so one shared
+database backs every group (see §13). The interface is unchanged by that — callers
+see a single ledger:
 
 ```ts
 interface Storage {
-  inspect(): Promise<DbInspection>; // empty | ccshare | foreign
+  // scoped to one groupId
+  inspect(): Promise<DbInspection>; // empty | ccshare (for this group)
   initializeSchema(accountId?): Promise<void>;
   bindAccount(accountId): Promise<void>; // claim an unbound ledger (§1.5)
   migrate(toVersion): Promise<void>;
@@ -818,29 +818,31 @@ interface Storage {
 ```
 
 `recordBatch` is one transaction (`sql.begin` in Postgres, `client.batch` in
-libSQL), so a tick is all-or-nothing and bumps `writeSeq` exactly once. A single
-**contract test suite** runs against the memory, libSQL, and Postgres adapters,
-which is what proves swappability, the batching/dedup/prune semantics, the change
-token, and the clean-DB rules below.
+libSQL), so a tick is all-or-nothing and bumps that group's `writeSeq` exactly once.
+A single **contract test suite** runs against the memory, libSQL, and Postgres
+adapters — including a two-groups-in-one-database isolation case — which is what
+proves swappability, `group_id` isolation, the batching/dedup/prune semantics, the
+change token, and the group-setup rules below.
 
-### Init inspection — clean DB enforcement
+### Group inspection — per-group setup
 
-`ccshare init` refuses to mix into someone else's database. Inspection classifies
-the target three ways and the CLI branches on it:
+Because one database holds every group, `inspect` is scoped to the instance's
+`groupId` and classifies **this group's** slice two ways:
 
 ```ts
 type DbInspection =
-  | { kind: "empty" } // no tables  → prompt, then create
-  | { kind: "ccshare"; schemaVersion: number; accountId: string | null } // ours → join
-  | { kind: "foreign" }; // other tables → refuse
+  | { kind: "empty" } // this group has no ledger row yet → initialize it
+  | { kind: "ccshare"; schemaVersion: number; accountId: string | null }; // exists → use it
 ```
 
-The marker is a `ccshare_meta` table holding `app='ccshare'`, `schemaVersion`, a
-`projectId`, `createdAt`, and the bound `accountId` (§1.5). Init only creates tables
-on `empty` (after explicit confirmation), only joins on `ccshare` — and then only
-when the bound account matches (or is still null) — and **never** writes alongside a
-`foreign` schema. `inspect` reads `ccshare_meta` with `SELECT *`, so an older DB
-missing a column still reads (the absent column comes back as `null`).
+The marker is a per-group `ccshare_meta` row (keyed by `group_id`) holding
+`app='ccshare'`, `schemaVersion`, a `projectId`, `createdAt`, and the bound
+`accountId` (§1.5). The ledger tables are created once (shared, `IF NOT EXISTS`); a
+group's ledger "exists" when its meta row does. The server provisions a group by
+calling `initializeSchema(accountId)` on an `empty` group. `inspect` reads
+`ccshare_meta` with `SELECT *`, so an older DB missing a column still reads (the
+absent column comes back as `null`). There is no `foreign` state: the client never
+opens a database, and the server always owns its own.
 
 ---
 
@@ -884,14 +886,15 @@ against a real Postgres.
 
 ---
 
-## 13. Shared hosting — the server, tenancy, and the two-password model
+## 13. The server — tenancy and the two-password model
 
-Self-hosting requires the group to run a database and hand every member its
-credentials — which also means every member can read and write **anything**,
-including usage rows under someone else's name. Shared hosting removes both the
-infrastructure and that trust requirement: the CLI ships with a **hardcoded server
-URL** (`CCSHARE_SERVER_URL` overrides it for dev/self-hosted servers), and members
-authenticate instead of connecting.
+Every machine reaches the shared ledger the same way: over HTTP through the
+ccshare server, which owns the only database. Handing every member raw database
+credentials would let anyone read and write **anything**, including usage rows
+under someone else's name; authenticating against a server removes both that trust
+requirement and the need for anyone to run infrastructure. The CLI ships with a
+**hardcoded server URL** (`CCSHARE_SERVER_URL` overrides it for dev / a group's own
+self-hosted server), and members authenticate instead of connecting.
 
 ### The trust model — two passwords
 
@@ -901,8 +904,8 @@ Joining a group takes exactly two secrets:
   all;
 - a **member password** — personal; set the first time a name joins, required
   forever after to use that name. Taking an existing name without its password is
-  refused (the anti-impersonation check), so `ccshare config set name <other>` in
-  shared mode is a real **login**.
+  refused (the anti-impersonation check), so `ccshare config set name <other>` is a
+  real **login**.
 
 The group itself is located (and bound, §1.5) by the Claude `accountUuid`, resolved
 locally from `~/.claude.json` — never typed, never guessable from the outside
@@ -914,24 +917,27 @@ migrating rows) — `node:crypto` only, no native deps. Password endpoints sit
 behind an in-memory per-(IP, account) failure damper, and the CLI refuses plain
 `http://` for anything but localhost so a bearer never travels unencrypted.
 
-### What the server enforces (that self-host can't)
+### What the server enforces
 
 Every ingested row's `user` is **overwritten with the authenticated member's
 name** — the payload's name field is untrusted. Combined with the member password,
 this means a member can misreport at most _their own_ share (by not running the
 daemon), never inflate someone else's.
 
-### Tenancy — one Postgres schema per group
+### Tenancy — one relational database, `group_id` per group
 
-The server is multi-tenant but the `Storage` boundary never learns that: each
-group's ledger is a plain ccshare database living in its own Postgres schema
-(`grp_<uuid>`), reached through the **unchanged `PostgresStorage` adapter** via
-`search_path`. Per group, the server composes the very same core pieces the
-self-host CLI uses — `StorageIngestSink` + `StorageViewSource` — so ingest
-semantics, attribution, watermark caching, migration, and pruning are one code
-path everywhere. The server-owned **registry** (groups / members / tokens) lives
-in ordinary tables outside the `Storage` interface. Tenant pools are small
-(max 2, aggressive idle reap) and LRU-capped.
+The server runs on **Postgres or libSQL** — one `DATABASE_URL`, picked by
+`resolveServerBackend` (a `postgres://` URL is Postgres, anything else is libSQL;
+`CCSHARE_DB_DRIVER` forces it). Both adapters implement the **same relational
+model**: one shared database where every ledger row carries a `group_id` that
+references the `groups` table. The server is multi-tenant but the `Storage`
+boundary never learns that — each group is served by a `Storage` instance **scoped
+to its `group_id`** (see §9), composed into the very same core pieces used
+everywhere: `StorageIngestSink` + `StorageViewSource`. So ingest semantics,
+attribution, watermark caching, migration, and pruning are one code path across
+both databases. The server-owned **registry** (groups / members / tokens) lives in
+ordinary tables in the same database, outside the `Storage` interface. Live tenants
+are LRU-capped, each holding a small connection pool (`StorageTenantProvider`).
 
 ### The API surface
 
@@ -952,32 +958,30 @@ the server (`apps/server`) and the client (`CcshareClient` / `HttpIngestSink` /
 
 ## Appendix — edge cases the algorithm bakes in
 
-| Situation                                  | Behavior                                                                                                              |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Tank already high when daemon starts       | That level is `unknown`'s baseline (§7).                                                                              |
-| Mobile / web / chat usage                  | Tank rises with no Code activity → `unknown` (§7).                                                                    |
-| Daemon was down during usage               | Those messages aren't in the DB → that rise → `unknown`.                                                              |
-| Resume/compaction re-prime or lagged tail  | Local rise with no in-interval message → daemon marks it for its recent user (§7).                                    |
-| Access token expired                       | Skip the poll; keep ingesting + writing state (§5).                                                                   |
-| 401 with a non-expired token (clock skew)  | Treat like expiry; don't back off.                                                                                    |
-| Network error                              | Exponential backoff (cap 5m), jittered; ingest still runs.                                                            |
-| Mid-week out-of-band reset                 | Detected by pct-drop, never by `resets_at` (§3).                                                                      |
-| Same request logged on several lines       | Dedup by `requestId` so it's counted once (§4).                                                                       |
-| Partial trailing JSONL line                | Offset stops at the last newline; resumed next tick (§4).                                                             |
-| Daemon restart                             | Re-baseline transcripts at EOF — no backfill (§4).                                                                    |
-| `weekly-opus` not on the plan (`null`)     | Skipped, not rendered as 0% (§2).                                                                                     |
-| Cap with a `NaN`/`Infinity` utilization    | Skipped like a `null` cap; never poisons the trajectory (§2).                                                         |
-| Two people, one machine                    | Hand off with `config set name`; applied next tick (§11).                                                             |
-| DB unreachable mid-run                     | Serve last-known from `state.json` with a stale badge (§8).                                                           |
-| Machine signed into a different account    | `init` refuses; a running daemon halts ledger writes + flags a conflict (§1.5).                                       |
-| Ledger created before onboarding (unbound) | Bound to the first hydrated account that joins; one-way (§1.5). Selfhost only — shared groups bind at creation (§13). |
-| Server unreachable mid-run (shared mode)   | Same as DB unreachable: `state.json` + stale badge; failed batches retry next tick (§5, §8).                          |
-| Ingest 409 (wrong account, shared mode)    | Nothing written; daemon flags `account.conflict` and drops the batch (§1.5, §13).                                     |
-| Joining an existing name, wrong password   | Refused (401) — names are impersonation-protected in shared mode (§13).                                               |
-| Transient ingest failure (network blip)    | The tick's batch is kept and merged into the next tick; uuid/id dedup makes the re-send safe (§5).                    |
-| Corrupt/negative token count in a line     | Clamped to 0 so it can't invert the weighted split (§4, §7).                                                          |
-| Message timestamped in the future          | Never matches an interval → its rise falls to `unknown` (§7).                                                         |
-| Downward pct correction (not a reset)      | May register as a reset above `epsilon`; rare, pct-drop still beats `resets_at` (§3).                                 |
+| Situation                                 | Behavior                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Tank already high when daemon starts      | That level is `unknown`'s baseline (§7).                                                           |
+| Mobile / web / chat usage                 | Tank rises with no Code activity → `unknown` (§7).                                                 |
+| Daemon was down during usage              | Those messages aren't in the DB → that rise → `unknown`.                                           |
+| Resume/compaction re-prime or lagged tail | Local rise with no in-interval message → daemon marks it for its recent user (§7).                 |
+| Access token expired                      | Skip the poll; keep ingesting + writing state (§5).                                                |
+| 401 with a non-expired token (clock skew) | Treat like expiry; don't back off.                                                                 |
+| Network error                             | Exponential backoff (cap 5m), jittered; ingest still runs.                                         |
+| Mid-week out-of-band reset                | Detected by pct-drop, never by `resets_at` (§3).                                                   |
+| Same request logged on several lines      | Dedup by `requestId` so it's counted once (§4).                                                    |
+| Partial trailing JSONL line               | Offset stops at the last newline; resumed next tick (§4).                                          |
+| Daemon restart                            | Re-baseline transcripts at EOF — no backfill (§4).                                                 |
+| `weekly-opus` not on the plan (`null`)    | Skipped, not rendered as 0% (§2).                                                                  |
+| Cap with a `NaN`/`Infinity` utilization   | Skipped like a `null` cap; never poisons the trajectory (§2).                                      |
+| Two people, one machine                   | Hand off with `config set name`; applied next tick (§11).                                          |
+| Machine signed into a different account   | A running daemon halts ledger writes + flags a conflict; the server 409s the tick (§1.5, §13).     |
+| Server unreachable mid-run                | Serve last-known from `state.json` with a stale badge; failed batches retry next tick (§5, §8).    |
+| Ingest 409 (wrong account)                | Nothing written; daemon flags `account.conflict` and drops the batch (§1.5, §13).                  |
+| Joining an existing name, wrong password  | Refused (401) — names are impersonation-protected (§13).                                           |
+| Transient ingest failure (network blip)   | The tick's batch is kept and merged into the next tick; uuid/id dedup makes the re-send safe (§5). |
+| Corrupt/negative token count in a line    | Clamped to 0 so it can't invert the weighted split (§4, §7).                                       |
+| Message timestamped in the future         | Never matches an interval → its rise falls to `unknown` (§7).                                      |
+| Downward pct correction (not a reset)     | May register as a reset above `epsilon`; rare, pct-drop still beats `resets_at` (§3).              |
 
 ```
 

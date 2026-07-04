@@ -29,6 +29,7 @@ const vm: ViewModel = {
   ],
   source: "db",
   stale: false,
+  loggedOut: false,
   daemonRunning: true,
   tokenExpired: false,
   account: "zeghdns@gmail.com",
@@ -80,6 +81,7 @@ describe("no data / never sync designs render", () => {
     users: [],
     source: "none",
     stale: false,
+    loggedOut: false,
     daemonRunning: false,
     tokenExpired: false,
     account: null,
@@ -87,20 +89,50 @@ describe("no data / never sync designs render", () => {
   };
   const model = toDesignModel(noneVm, "alice", now);
 
-  it("populates the 4 members named xxxx with mock values", () => {
-    expect(model.disconnected).toBe(true);
-    expect(model.members.length).toBe(4);
-    for (const m of model.members) {
-      expect(m.name).toBe("xxxx");
-    }
+  it("shows no members and no fabricated caps when there is no data", () => {
+    expect(model.members).toEqual([]);
+    expect(model.caps).toEqual([]);
+    expect(model.alert).toBeNull();
   });
 
   for (const d of DESIGNS) {
-    it(`renders "${d.name}" on empty data without throwing, showing xxxx rows`, () => {
+    it(`renders "${d.name}" on empty data without throwing (no fake rows)`, () => {
       const { lastFrame, unmount } = render(<Box>{d.render(model, 108, 24, 0)}</Box>);
       const frame = lastFrame() ?? "";
-      expect(frame).toContain("xxxx");
-      expect(frame).toContain("40%"); // default five_hour mock pct
+      expect(frame).not.toContain("xxxx");
+      unmount();
+    });
+  }
+});
+
+describe("logged out (server rejected the bearer)", () => {
+  const loggedOutVm: ViewModel = {
+    samples: [{ cap: "five_hour", pct: 40, resetsAt: null, capturedAt: iso(1) }], // local tank
+    shares: [],
+    members: [],
+    users: [],
+    source: "state",
+    stale: false,
+    loggedOut: true,
+    daemonRunning: true,
+    tokenExpired: false,
+    account: "zeghdns@gmail.com",
+    updatedAt: iso(1),
+  };
+  const model = toDesignModel(loggedOutVm, "alice", now);
+
+  it("surfaces a logged-out alert and never fabricates member rows", () => {
+    expect(model.alert).toMatch(/logged out/i);
+    expect(model.loggedOut).toBe(true);
+    expect(model.members).toEqual([]);
+  });
+
+  for (const d of DESIGNS) {
+    it(`renders "${d.name}" with the logged-out alert`, () => {
+      const { lastFrame, unmount } = render(<Box>{d.render(model, 108, 24, 0)}</Box>);
+      const frame = lastFrame() ?? "";
+      expect(frame).toMatch(/logged out/i);
+      expect(frame).not.toContain("xxxx");
       unmount();
     });
   }

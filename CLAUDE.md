@@ -29,8 +29,9 @@ pnpm vitest run -t "attributeShares"                     # tests matching a name
 node apps/cli/dist/cli.js <command>
 pnpm --filter @ccshare/cli dev <command>   # tsx, no build step
 
-# run the built server (shared hosting)
+# run the built server (Postgres or libSQL — driver inferred from DATABASE_URL)
 DATABASE_URL=postgres://… PORT=8787 node apps/server/dist/index.js
+DATABASE_URL=file:/tmp/ccshare-server.db PORT=8787 node apps/server/dist/index.js
 ```
 
 Both runtimes must stay green — **CI runs the whole suite twice (Node and Bun)** and
@@ -39,8 +40,8 @@ Postgres. To run them locally, set `CCSHARE_TEST_PG_URL` (otherwise they skip).
 
 When manually exercising the CLI/daemon/server, isolate state with env overrides so
 you don't touch real data: `CCSHARE_DIR` (ccshare's `~/.ccshare`), `CLAUDE_CONFIG_DIR`
-(the Claude config dir it observes), and `CCSHARE_SERVER_URL` (points shared-hosting
-mode at a dev server instead of the hardcoded host).
+(the Claude config dir it observes), and `CCSHARE_SERVER_URL` (points the CLI at a
+dev server instead of the hardcoded host).
 
 Note: the husky pre-commit hook only runs `lint-staged` (prettier) — it does **not**
 run tests or eslint, so run `pnpm test` / `pnpm type-check` / `pnpm lint` yourself
@@ -51,48 +52,47 @@ before committing.
 Monorepo (pnpm workspaces + turbo). The meaningful packages:
 
 - `packages/core` — runtime-agnostic domain logic: the `Storage` interface, the
-  in-memory adapter, the `IngestSink`/`ViewSource` backend boundary (local + HTTP
-  implementations), the shared-hosting wire contract, identity/credentials, the
-  usage poller, reset detection, the JSONL reader, the attribution algorithm, view
-  assembly, and shared formatters. No UI, no process.
-- `packages/storage-libsql` — self-host adapter (`file:` and `libsql://`).
-- `packages/storage-postgres` — adapter used by self-hosters and (per group schema)
-  by the server.
+  in-memory adapter, the `IngestSink`/`ViewSource` backend boundary (the
+  storage-backed pieces the server composes + the HTTP client the CLI uses), the
+  wire contract, identity/credentials, the usage poller, reset detection, the JSONL
+  reader, the attribution algorithm, view assembly, and shared formatters. No UI,
+  no process.
+- `packages/storage-libsql` — server-side libSQL adapter (`file:` and `libsql://`).
+- `packages/storage-postgres` — server-side Postgres adapter.
 - `packages/daemon` — the long-running observer (poll loop, lifecycle, `spawnDetached`).
-- `apps/cli` — Commander + Ink CLI (the composition root).
-- `apps/server` — the multi-tenant shared-hosting HTTP server (Hono, Postgres-only).
+- `apps/cli` — Commander + Ink CLI (the composition root). **HTTP client only — it
+  never opens a database.**
+- `apps/server` — the multi-tenant HTTP server (Hono; Postgres _or_ libSQL).
 - `apps/web` — unrelated Astro marketing site.
 
-### Two modes, one boundary
+### One path to the ledger, one boundary
 
-A machine reaches the shared ledger one of two ways (`config.mode`):
+Every machine reaches the shared ledger the **same way**: over HTTP through the
+ccshare server at a hardcoded URL (`apps/cli/src/lib/links.ts#DEFAULT_SERVER_URL`,
+`CCSHARE_SERVER_URL` overrides). Auth is two passwords — a shared **group password**
+(proves membership) and a per-name **member password** (prevents impersonation) —
+traded at init for a bearer token in the 0600 `~/.ccshare/token` file. The server
+stamps every ingested row with the _authenticated_ member's name; **the CLI never
+touches a database** (there is no selfhost mode, no `config.mode`).
 
-- **shared** (default at init): the CLI talks to the ccshare server at a hardcoded
-  URL (`apps/cli/src/lib/links.ts#DEFAULT_SERVER_URL`, `CCSHARE_SERVER_URL`
-  overrides). Auth is two passwords — a shared **group password** (proves
-  membership) and a per-name **member password** (prevents impersonation) — traded
-  at init for a bearer token in the 0600 `~/.ccshare/token` file. The server stamps
-  every ingested row with the _authenticated_ member's name; clients never see a
-  database.
-- **selfhost**: the CLI opens a storage adapter directly (libsql/sqlite/postgres
-  URL), exactly as before.
-
-Both modes compose the same core boundary (`packages/core/src/backend/`): the
-daemon writes through an `IngestSink` (one batched call per tick), views read
-through a `ViewSource` (returns the compact precomputed `SharedView`).
-`apps/cli/src/lib/backend.ts` is the single place a config becomes a sink/source;
-`makeStorage` remains the driver→adapter map for the selfhost path.
+The client composes the core boundary (`packages/core/src/backend/`): the daemon
+writes through an `IngestSink` (one batched call per tick), views read through a
+`ViewSource` (returns the compact precomputed `SharedView`). On the client both are
+always the HTTP implementations. `apps/cli/src/lib/backend.ts` is the single place a
+config becomes a sink/source. The server composes the storage-backed pieces
+(`StorageIngestSink`/`StorageViewSource`) over a group-scoped `Storage`.
 
 ### The data flow
 
-There is **no IPC**. The contract is files + (a database | the server API):
+There is **no IPC**. The contract is files + the server API:
 
 1. `apps/cli daemon run` → `packages/daemon` runs a tick loop. Each tick: poll the
    global tank → detect resets → ingest new transcript activity → write an atomic
    local `state.json` → send everything as **one** `IngestSink.ingest(batch)` (one
-   DB transaction, or one `POST /v1/ingest`). A failed batch is retained and merged
-   into the next tick (idempotent uuids make the re-send safe).
-2. `status`/`tui` build a view via `gatherView(cfg, viewSource)`: prefer the shared
+   `POST /v1/ingest`, which the server persists as one DB transaction). A failed
+   batch is retained and merged into the next tick (idempotent uuids make the
+   re-send safe).
+2. `status`/`tui` build a view via `gatherView(cfg, viewSource)`: prefer the server
    backend (everyone-included), fall back to `state.json`, then a one-shot live
    poll. `statusline` reads `state.json` only.
 
@@ -112,38 +112,43 @@ ship raw rows over the network — `SharedView` is the wire unit.
 
 `packages/core/src/storage/storage.ts` is the one interface that must stay clean.
 Adapters are dumb (rows in, rows out — `recordBatch`/`prune`/`getChangeToken` are
-still just row mutation + a counter) — **no business logic lives in storage.** A
-shared contract suite (`packages/core/test/storage-contract.ts`) runs against
-memory, libSQL, and Postgres; passing it is what proves swappability and the
-clean-DB rules. The server reuses `PostgresStorage` unchanged, one schema per group
-(`opts.schema` → `search_path`); the server-owned registry tables (groups/members/
-tokens, in `apps/server/src/registry-pg.ts`) live OUTSIDE this interface.
+still just row mutation + a counter) — **no business logic lives in storage.**
+**Storage is server-only** and every instance is **scoped to one `groupId`** (bound
+at construction, injected as a `group_id` column on every table), so one shared
+database backs every group. A shared contract suite
+(`packages/core/test/storage-contract.ts`) runs against memory, libSQL, and Postgres
+— including a two-groups-in-one-DB isolation case — proving swappability, `group_id`
+isolation, and the group-setup rules. The server picks the driver in
+`apps/server/src/backend.ts` (`makeServerDeps`) and composes a group-scoped `Storage`
+per group via `StorageTenantProvider`; the server-owned registry tables
+(groups/members/tokens, in `apps/server/src/registry-pg.ts` / `registry-libsql.ts`)
+live OUTSIDE this interface, in the same database. Ledger rows carry a `group_id`
+referencing `groups(id)`.
 
 ### Schema changes require a versioned migration (do this every time)
 
 **Any new feature or conflict-guard that touches the DB — a new column, table, or
 `ccshare_meta` field — MUST ship as a numbered migration, never an ad-hoc schema
-edit.** (v1 itself was redefined once, pre-production, to fold in `writeSeq`, the
-`reset_events(at)` index, and the removal of the retired `budgets` table — dev DBs
-from before that are simply re-inited. From here on the rules apply.) For each such
-change:
+edit.** (`SCHEMA_VERSION` is currently **1**, the relational baseline: one shared DB,
+a per-group `ccshare_meta` row, and `group_id` on every ledger table. Pre-rewrite dev
+DBs are simply re-inited.) For each such change:
 
 1. Bump `SCHEMA_VERSION` in `packages/core/src/storage/storage.ts` and document
    what the new version adds.
 2. Add the columns/tables to the fresh `initializeSchema` of **all three** adapters
-   (memory, libSQL, Postgres).
+   (memory, libSQL, Postgres) — keeping the `group_id` scoping.
 3. Extend `migrate(toVersion)` in each adapter to bring an older DB forward
    **idempotently and additively** (nullable columns; `ADD COLUMN IF NOT EXISTS` /
    probe-then-`ALTER`), so it's forward- and multi-machine-safe. Never a destructive
    migration on a shared DB.
-4. The daemon auto-migrates on startup (`StorageIngestSink.bootstrap`) and `init`
-   migrates on join — so users never re-run anything after an update. The server
-   migrates each group ledger the same way. Keep it that way.
+4. The server migrates each group's ledger on tenant open
+   (`StorageIngestSink.bootstrap`), so nobody re-runs anything after an update. Keep
+   it that way.
 5. Cover it in the storage contract suite so every adapter is proven.
 
-Migrations must stay backward-compatible: an older CLI still reads/writes a newer DB
-(inspect uses `SELECT *`, writers only touch known columns). Don't make a new schema
-version refuse older clients.
+Migrations must stay backward-compatible: an older server still reads/writes a newer
+DB (inspect uses `SELECT *`, writers only touch known columns). Don't make a new
+schema version refuse older servers.
 
 ### Design system
 
@@ -185,8 +190,9 @@ always wins, so they can never dilute measured attribution. See ALGORITHM.md §7
   start and ingests only appended lines; restart re-baselines (no backfill). Dedup by
   `requestId`/`uuid`.
 - **One ledger write per tick.** The daemon accumulates a `TickBatch` and makes one
-  `ingest` call; adapters persist it in one transaction and bump the change token
-  once. Retention (`prune`) keeps every table inside the 8-day window.
+  `ingest` call (`POST /v1/ingest`); the server persists it in one transaction and
+  bumps that group's change token once. Retention (`prune`) keeps every table inside
+  the 8-day window.
 - **Tests resolve workspace packages to source.** `vitest.config.ts` aliases
   `@ccshare/*` to `src`, so tests run without a build — but the CLI runtime imports
   built `dist`, so build before running it.
@@ -194,23 +200,25 @@ always wins, so they can never dilute measured attribution. See ALGORITHM.md §7
   bound to machines; `unknown` is a normal, always-present row that absorbs
   unattributed usage. The server accepts exactly what `isValidName` accepts, so
   the length cap must live in `isValidName` (an unbounded name bloats rows and
-  breaks the TUI columns). In shared mode a name is additionally
-  **password-protected**: joining an existing name requires its member password,
-  and the server overwrites ingested rows' `user` with the authenticated member,
-  so members can't write as each other. A shared-mode hand-off (`config set name`)
-  mints a fresh bearer, so it restarts the daemon — the sink's token is fixed at
-  startup and the server attributes by token, not by the payload name.
-- **`init` never writes into a foreign database** (selfhost). Inspection classifies
-  the target as `empty` / `ccshare` / `foreign`; only `empty` (after confirmation)
-  or `ccshare` are written to.
-- **One ledger, one account.** `ccshare_meta.accountId` binds the DB to a Claude
-  `accountUuid` (the UUID, never the email). `init` refuses a ccshare DB bound to a
-  different account; a running daemon halts all ledger writes on a mismatch and flags
-  `state.json`'s `account.conflict`. In shared mode the server enforces the same rule
-  (409 `account-conflict` on `/v1/ingest`, nothing written), and group **creation**
-  requires a hydrated account; self-host keeps the unbound-then-claim flow
-  (`null → accountUuid`). See ALGORITHM.md §1.5.
-- **Secrets stay out of config.json.** The 0600 `~/.ccshare/token` file holds the DB
-  auth token (selfhost) or the server bearer (shared); the server stores only
-  sha256 hashes of bearers and self-describing scrypt hashes of passwords. The CLI
-  refuses plain-http server URLs except localhost.
+  breaks the TUI columns). A name is additionally **password-protected**: joining an
+  existing name requires its member password, and the server overwrites ingested
+  rows' `user` with the authenticated member, so members can't write as each other. A
+  hand-off (`config set name`) mints a fresh bearer, so it restarts the daemon — the
+  sink's token is fixed at startup and the server attributes by token, not by the
+  payload name.
+- **Group setup is per-group.** Because one database holds every group, `inspect` is
+  scoped to the instance's `groupId` and returns `empty` (this group has no ledger
+  row yet) or `ccshare` (its `ccshare_meta` row exists). The server provisions a
+  group by calling `initializeSchema(accountId)` on an `empty` group. There is no
+  `foreign` state — only the server opens a DB, and always its own.
+- **One ledger, one account.** `ccshare_meta.accountId` binds a group's ledger to a
+  Claude `accountUuid` (the UUID, never the email). The server binds a group at
+  creation (`POST /v1/groups` requires a hydrated account) and enforces it on ingest
+  (409 `account-conflict` on `/v1/ingest`, nothing written); a running daemon halts
+  all ledger writes on a mismatch and flags `state.json`'s `account.conflict`. The
+  `accountId` column stays nullable so the one-way `null → accountUuid` claim
+  (`bindAccount`) remains available. See ALGORITHM.md §1.5.
+- **Secrets stay out of config.json.** The 0600 `~/.ccshare/token` file holds the
+  server bearer; the server stores only sha256 hashes of bearers and self-describing
+  scrypt hashes of passwords. The CLI refuses plain-http server URLs except
+  localhost.

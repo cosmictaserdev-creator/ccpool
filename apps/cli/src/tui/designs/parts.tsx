@@ -286,24 +286,20 @@ export function Header({
           {chip(
             true,
             <>
-              source <Text color={pal.accent}>{model.sourceLabel}</Text>
-            </>
-          )}
-          {chip(
-            true,
-            <>
               synced <Text color={pal.value}>{model.sync}</Text>
             </>
           )}
-          {chip(
-            true,
-            <>
-              daemon{" "}
-              <Text color={model.daemonRunning ? pal.accent : P.faint}>
-                {model.daemonRunning ? "running" : "stopped"}
-              </Text>
-            </>
-          )}
+          {/* Only surfaced when down — the TUI is bringing it back up (§App). */}
+          {!model.daemonRunning &&
+            chip(
+              true,
+              <>
+                daemon{" "}
+                <Text color={P.red} bold>
+                  down
+                </Text>
+              </>
+            )}
         </Box>
       </Box>
     </Box>

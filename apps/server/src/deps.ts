@@ -13,8 +13,6 @@ export interface GroupRow {
   accountId: string;
   /** scrypt hash of the shared group password. */
   passwordHash: string;
-  /** The Postgres schema holding this group's ledger. */
-  schemaName: string;
   createdAt: string;
 }
 
@@ -27,8 +25,14 @@ export interface MemberRow {
   createdAt: string;
 }
 
-/** Groups, members, and tokens — the server-owned tables OUTSIDE `Storage`. */
+/**
+ * Groups, members, and tokens — the server-owned tables OUTSIDE `Storage`. They
+ * live in the same physical database as the ledgers; the ledger tables carry a
+ * `group_id` that references `groups(id)`.
+ */
 export interface Registry {
+  /** Create/verify the registry tables. Idempotent; run once at startup. */
+  ensure(): Promise<void>;
   getGroupByAccount(accountId: string): Promise<GroupRow | null>;
   /** Insert a group row (unique accountId is the concurrency gate). */
   createGroup(accountId: string, passwordHash: string): Promise<GroupRow>;
@@ -44,7 +48,7 @@ export interface Registry {
   close(): Promise<void>;
 }
 
-/** One group's composed backend: the same core pieces the self-host CLI uses. */
+/** One group's composed backend: a group-scoped Storage behind the core boundary. */
 export interface Tenant {
   sink: IngestSink;
   /** StorageViewSource concretely — its cache key doubles as the ETag. */
@@ -53,7 +57,7 @@ export interface Tenant {
 }
 
 export interface TenantProvider {
-  /** Create the group's ledger (schema + tables), bound to its account. */
+  /** Create the group's ledger rows (its `group_id` meta), bound to its account. */
   provision(group: GroupRow): Promise<void>;
   /** The (cached) live tenant for a provisioned group. */
   get(group: GroupRow): Promise<Tenant>;

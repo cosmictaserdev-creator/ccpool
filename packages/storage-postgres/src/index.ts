@@ -2,6 +2,7 @@ import postgres, { type Sql } from "postgres";
 import { randomUUID } from "node:crypto";
 import {
   CAP_KINDS,
+  DEFAULT_GROUP_ID,
   isEmptyBatch,
   SCHEMA_VERSION,
   UNKNOWN_USER,
@@ -19,11 +20,8 @@ import {
 export const DRIVER = "postgres" as const;
 
 export interface PostgresStorageOptions {
-  /**
-   * Confine this instance to a named schema (its `search_path`). The multi-tenant
-   * server gives every group its own schema and reuses this adapter unchanged.
-   */
-  schema?: string;
+  /** The group this instance is scoped to (its `group_id` in every query). */
+  groupId?: string;
   /** Pool size — the server keeps this small (many tenants, one pool each). */
   max?: number;
   /** Seconds an idle pooled connection lives before being reaped. */
@@ -31,17 +29,20 @@ export interface PostgresStorageOptions {
 }
 
 /**
- * Second Storage adapter, proving the boundary: flipping `storage.driver` moves a
- * group to Postgres with no call-site changes. camelCase columns are quoted so
- * Postgres preserves their case (and `"user"` is a reserved word).
+ * Second Storage adapter, proving the boundary: the same relational model as the
+ * libSQL adapter, backed by Postgres. One physical database holds every group's
+ * ledger; this instance is confined to `opts.groupId` via a `group_id` column on
+ * every table. camelCase columns are quoted so Postgres preserves their case (and
+ * `"user"` is a reserved word).
  */
 export class PostgresStorage implements Storage {
   private sql: Sql;
+  private readonly groupId: string;
 
   constructor(url: string, opts: PostgresStorageOptions = {}) {
+    this.groupId = opts.groupId ?? DEFAULT_GROUP_ID;
     this.sql = postgres(url, {
       onnotice: () => {},
-      ...(opts.schema ? { connection: { search_path: opts.schema } } : {}),
       ...(opts.max !== undefined ? { max: opts.max } : {}),
       ...(opts.idleTimeoutSecs !== undefined ? { idle_timeout: opts.idleTimeoutSecs } : {}),
     });
@@ -52,81 +53,81 @@ export class PostgresStorage implements Storage {
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = current_schema()`;
     const tables = new Set(rows.map((r) => r.table_name));
-    if (tables.size === 0) return { kind: "empty" };
-    if (tables.has("ccshare_meta")) {
-      // SELECT * so a DB from another build still reads (missing key -> undefined).
-      const meta = await this.sql<
-        { schemaVersion: number; accountId?: string | null }[]
-      >`SELECT * FROM ccshare_meta LIMIT 1`;
-      return {
-        kind: "ccshare",
-        schemaVersion: Number(meta[0]?.schemaVersion ?? SCHEMA_VERSION),
-        accountId: meta[0]?.accountId ?? null,
-      };
-    }
-    return { kind: "foreign" };
+    if (!tables.has("ccshare_meta")) return { kind: "empty" };
+    // SELECT * so a DB from another build still reads (missing key -> undefined).
+    const meta = await this.sql<
+      { schemaVersion: number; accountId?: string | null }[]
+    >`SELECT * FROM ccshare_meta WHERE group_id = ${this.groupId} LIMIT 1`;
+    // The ledger tables exist but this group has no meta row yet — safe to init it.
+    if (!meta[0]) return { kind: "empty" };
+    return {
+      kind: "ccshare",
+      schemaVersion: Number(meta[0].schemaVersion ?? SCHEMA_VERSION),
+      accountId: meta[0].accountId ?? null,
+    };
   }
 
   async initializeSchema(accountId: string | null = null): Promise<void> {
-    if ((await this.inspect()).kind === "foreign") {
-      throw new Error("refusing to initialize schema over a foreign database");
-    }
+    // Tables are shared across groups (created once, IF NOT EXISTS); the per-group
+    // meta row is what makes this group's ledger exist.
     await this.sql.begin(async (tx) => {
       await tx`CREATE TABLE IF NOT EXISTS ccshare_meta (
-        app TEXT NOT NULL, "schemaVersion" INTEGER NOT NULL,
+        group_id TEXT PRIMARY KEY, app TEXT NOT NULL, "schemaVersion" INTEGER NOT NULL,
         "projectId" TEXT NOT NULL, "createdAt" TEXT NOT NULL, "accountId" TEXT,
         "writeSeq" BIGINT NOT NULL DEFAULT 0)`;
       await tx`CREATE TABLE IF NOT EXISTS users (
-        name TEXT PRIMARY KEY, "createdAt" TEXT NOT NULL)`;
+        group_id TEXT NOT NULL, name TEXT NOT NULL, "createdAt" TEXT NOT NULL,
+        PRIMARY KEY (group_id, name))`;
       await tx`CREATE TABLE IF NOT EXISTS usage_samples (
-        cap TEXT NOT NULL, pct DOUBLE PRECISION NOT NULL,
+        group_id TEXT NOT NULL, cap TEXT NOT NULL, pct DOUBLE PRECISION NOT NULL,
         "resetsAt" TEXT, "capturedAt" TEXT NOT NULL)`;
       await tx`CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_samples_cap
-        ON usage_samples (cap, "capturedAt")`;
+        ON usage_samples (group_id, cap, "capturedAt")`;
       await tx`CREATE TABLE IF NOT EXISTS message_usage (
-        uuid TEXT PRIMARY KEY, "user" TEXT NOT NULL, timestamp TEXT NOT NULL, model TEXT,
+        group_id TEXT NOT NULL, uuid TEXT NOT NULL, "user" TEXT NOT NULL,
+        timestamp TEXT NOT NULL, model TEXT,
         "inputTokens" BIGINT NOT NULL, "outputTokens" BIGINT NOT NULL,
-        "cacheCreationTokens" BIGINT NOT NULL, "cacheReadTokens" BIGINT NOT NULL)`;
+        "cacheCreationTokens" BIGINT NOT NULL, "cacheReadTokens" BIGINT NOT NULL,
+        PRIMARY KEY (group_id, uuid))`;
       await tx`CREATE INDEX IF NOT EXISTS idx_message_usage_ts
-        ON message_usage (timestamp)`;
+        ON message_usage (group_id, timestamp)`;
       await tx`CREATE TABLE IF NOT EXISTS usage_markers (
-        id TEXT PRIMARY KEY, "user" TEXT NOT NULL, at TEXT NOT NULL, model TEXT,
-        weight DOUBLE PRECISION NOT NULL)`;
+        group_id TEXT NOT NULL, id TEXT NOT NULL, "user" TEXT NOT NULL, at TEXT NOT NULL,
+        model TEXT, weight DOUBLE PRECISION NOT NULL, PRIMARY KEY (group_id, id))`;
       await tx`CREATE INDEX IF NOT EXISTS idx_usage_markers_at
-        ON usage_markers (at)`;
+        ON usage_markers (group_id, at)`;
       await tx`CREATE TABLE IF NOT EXISTS reset_events (
-        cap TEXT NOT NULL, at TEXT NOT NULL, "previousPct" DOUBLE PRECISION NOT NULL)`;
+        group_id TEXT NOT NULL, cap TEXT NOT NULL, at TEXT NOT NULL,
+        "previousPct" DOUBLE PRECISION NOT NULL)`;
       await tx`CREATE INDEX IF NOT EXISTS idx_reset_events_at
-        ON reset_events (at)`;
+        ON reset_events (group_id, at)`;
       await tx`CREATE UNIQUE INDEX IF NOT EXISTS idx_reset_events_uniq
-        ON reset_events (cap, at)`;
-      await tx`INSERT INTO ccshare_meta (app, "schemaVersion", "projectId", "createdAt", "accountId", "writeSeq")
-        VALUES ('ccshare', ${SCHEMA_VERSION}, ${randomUUID()}, ${new Date().toISOString()}, ${accountId}, 0)`;
+        ON reset_events (group_id, cap, at)`;
+      await tx`INSERT INTO ccshare_meta
+        (group_id, app, "schemaVersion", "projectId", "createdAt", "accountId", "writeSeq")
+        VALUES (${this.groupId}, 'ccshare', ${SCHEMA_VERSION}, ${randomUUID()},
+                ${new Date().toISOString()}, ${accountId}, 0)
+        ON CONFLICT (group_id) DO NOTHING`;
     });
   }
 
   async bindAccount(accountId: string): Promise<void> {
     // Claim only when currently unbound, so we never overwrite an existing binding.
-    await this.sql`UPDATE ccshare_meta SET "accountId" = ${accountId} WHERE "accountId" IS NULL`;
+    await this.sql`UPDATE ccshare_meta SET "accountId" = ${accountId}
+      WHERE group_id = ${this.groupId} AND "accountId" IS NULL`;
   }
 
   async migrate(toVersion: number): Promise<void> {
-    // v2: make usage_samples/reset_events idempotent on their natural keys.
-    // Additive and idempotent — dedup any rows an older build's retries may have
-    // duplicated (keep the earliest physical row by ctid), then add the unique
-    // indexes. The old non-unique idx_usage_samples_cap is dropped so its name can
-    // be reused for the unique one. Safe to run more than once.
+    // v1 is the baseline; a fresh DB is already current. migrate re-ensures the
+    // idempotency indexes (safe under a multi-machine race) and records the version
+    // this build wrote, so it stays additive and rerunnable.
     await this.sql.begin(async (tx) => {
-      await tx`DELETE FROM usage_samples a USING usage_samples b
-        WHERE a.ctid < b.ctid AND a.cap = b.cap AND a."capturedAt" = b."capturedAt"`;
-      await tx`DROP INDEX IF EXISTS idx_usage_samples_cap`;
       await tx`CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_samples_cap
-        ON usage_samples (cap, "capturedAt")`;
-      await tx`DELETE FROM reset_events a USING reset_events b
-        WHERE a.ctid < b.ctid AND a.cap = b.cap AND a.at = b.at`;
+        ON usage_samples (group_id, cap, "capturedAt")`;
       await tx`CREATE UNIQUE INDEX IF NOT EXISTS idx_reset_events_uniq
-        ON reset_events (cap, at)`;
-      await tx`UPDATE ccshare_meta SET "schemaVersion" = ${toVersion}`;
+        ON reset_events (group_id, cap, at)`;
+      await tx`UPDATE ccshare_meta SET "schemaVersion" = ${toVersion}
+        WHERE group_id = ${this.groupId}`;
     });
   }
 
@@ -136,63 +137,66 @@ export class PostgresStorage implements Storage {
 
   async upsertUser(name: string): Promise<void> {
     await this.sql.begin(async (tx) => {
-      await tx`INSERT INTO users (name, "createdAt")
-        VALUES (${name}, ${new Date().toISOString()})
-        ON CONFLICT (name) DO NOTHING`;
-      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1`;
+      await tx`INSERT INTO users (group_id, name, "createdAt")
+        VALUES (${this.groupId}, ${name}, ${new Date().toISOString()})
+        ON CONFLICT (group_id, name) DO NOTHING`;
+      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1
+        WHERE group_id = ${this.groupId}`;
     });
   }
 
   async getUsers(): Promise<User[]> {
     const rows = await this.sql<{ name: string; createdAt: string }[]>`
-      SELECT name, "createdAt" FROM users ORDER BY name`;
+      SELECT name, "createdAt" FROM users WHERE group_id = ${this.groupId} ORDER BY name`;
     return rows.map((r) => ({ name: r.name, createdAt: r.createdAt }));
   }
 
   async recordBatch(batch: TickBatch): Promise<void> {
     if (isEmptyBatch(batch)) return;
+    const g = this.groupId;
     await this.sql.begin(async (tx) => {
       for (const s of batch.samples) {
-        await tx`INSERT INTO usage_samples (cap, pct, "resetsAt", "capturedAt")
-          VALUES (${s.cap}, ${s.pct}, ${s.resetsAt}, ${s.capturedAt})
-          ON CONFLICT (cap, "capturedAt") DO NOTHING`;
+        await tx`INSERT INTO usage_samples (group_id, cap, pct, "resetsAt", "capturedAt")
+          VALUES (${g}, ${s.cap}, ${s.pct}, ${s.resetsAt}, ${s.capturedAt})
+          ON CONFLICT (group_id, cap, "capturedAt") DO NOTHING`;
       }
       for (const e of batch.resets) {
-        await tx`INSERT INTO reset_events (cap, at, "previousPct")
-          VALUES (${e.cap}, ${e.at}, ${e.previousPct})
-          ON CONFLICT (cap, at) DO NOTHING`;
+        await tx`INSERT INTO reset_events (group_id, cap, at, "previousPct")
+          VALUES (${g}, ${e.cap}, ${e.at}, ${e.previousPct})
+          ON CONFLICT (group_id, cap, at) DO NOTHING`;
       }
       for (const m of batch.messages) {
         await tx`INSERT INTO message_usage
-          (uuid, "user", timestamp, model, "inputTokens", "outputTokens",
+          (group_id, uuid, "user", timestamp, model, "inputTokens", "outputTokens",
            "cacheCreationTokens", "cacheReadTokens")
-          VALUES (${m.uuid}, ${m.user}, ${m.timestamp}, ${m.model},
+          VALUES (${g}, ${m.uuid}, ${m.user}, ${m.timestamp}, ${m.model},
             ${m.inputTokens}, ${m.outputTokens}, ${m.cacheCreationTokens}, ${m.cacheReadTokens})
-          ON CONFLICT (uuid) DO NOTHING`;
+          ON CONFLICT (group_id, uuid) DO NOTHING`;
       }
       for (const m of batch.markers) {
-        await tx`INSERT INTO usage_markers (id, "user", at, model, weight)
-          VALUES (${m.id}, ${m.user}, ${m.at}, ${m.model}, ${m.weight})
-          ON CONFLICT (id) DO NOTHING`;
+        await tx`INSERT INTO usage_markers (group_id, id, "user", at, model, weight)
+          VALUES (${g}, ${m.id}, ${m.user}, ${m.at}, ${m.model}, ${m.weight})
+          ON CONFLICT (group_id, id) DO NOTHING`;
       }
-      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1`;
+      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1 WHERE group_id = ${g}`;
     });
   }
 
   async prune(before: string): Promise<void> {
+    const g = this.groupId;
     await this.sql.begin(async (tx) => {
-      await tx`DELETE FROM usage_samples WHERE "capturedAt" < ${before}`;
-      await tx`DELETE FROM reset_events WHERE at < ${before}`;
-      await tx`DELETE FROM message_usage WHERE timestamp < ${before}`;
-      await tx`DELETE FROM usage_markers WHERE at < ${before}`;
-      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1`;
+      await tx`DELETE FROM usage_samples WHERE group_id = ${g} AND "capturedAt" < ${before}`;
+      await tx`DELETE FROM reset_events WHERE group_id = ${g} AND at < ${before}`;
+      await tx`DELETE FROM message_usage WHERE group_id = ${g} AND timestamp < ${before}`;
+      await tx`DELETE FROM usage_markers WHERE group_id = ${g} AND at < ${before}`;
+      await tx`UPDATE ccshare_meta SET "writeSeq" = "writeSeq" + 1 WHERE group_id = ${g}`;
     });
   }
 
   async getChangeToken(): Promise<string> {
     try {
       const rows = await this.sql<{ writeSeq: string | number }[]>`
-        SELECT "writeSeq" FROM ccshare_meta LIMIT 1`;
+        SELECT "writeSeq" FROM ccshare_meta WHERE group_id = ${this.groupId} LIMIT 1`;
       return String(rows[0]?.writeSeq ?? 0);
     } catch (err) {
       throw new Error(
@@ -206,7 +210,7 @@ export class PostgresStorage implements Storage {
     const rows = await this.sql<
       { cap: string; pct: number; resetsAt: string | null; capturedAt: string }[]
     >`SELECT DISTINCT ON (cap) cap, pct, "resetsAt", "capturedAt"
-      FROM usage_samples ORDER BY cap, "capturedAt" DESC`;
+      FROM usage_samples WHERE group_id = ${this.groupId} ORDER BY cap, "capturedAt" DESC`;
     const byCap = new Map<CapKind, UsageSample>();
     for (const r of rows) {
       byCap.set(r.cap as CapKind, {
@@ -223,7 +227,7 @@ export class PostgresStorage implements Storage {
     const rows = await this.sql<
       { cap: string; pct: number; resetsAt: string | null; capturedAt: string }[]
     >`SELECT cap, pct, "resetsAt", "capturedAt" FROM usage_samples
-      WHERE "capturedAt" >= ${since} ORDER BY "capturedAt" ASC`;
+      WHERE group_id = ${this.groupId} AND "capturedAt" >= ${since} ORDER BY "capturedAt" ASC`;
     return rows.map((r) => ({
       cap: r.cap as CapKind,
       pct: Number(r.pct),
@@ -234,7 +238,8 @@ export class PostgresStorage implements Storage {
 
   async getResetsSince(since: string): Promise<ResetEvent[]> {
     const rows = await this.sql<{ cap: string; at: string; previousPct: number }[]>`
-      SELECT cap, at, "previousPct" FROM reset_events WHERE at >= ${since} ORDER BY at ASC`;
+      SELECT cap, at, "previousPct" FROM reset_events
+      WHERE group_id = ${this.groupId} AND at >= ${since} ORDER BY at ASC`;
     return rows.map((r) => ({
       cap: r.cap as CapKind,
       at: r.at,
@@ -256,7 +261,7 @@ export class PostgresStorage implements Storage {
       }[]
     >`SELECT uuid, "user", timestamp, model, "inputTokens", "outputTokens",
              "cacheCreationTokens", "cacheReadTokens"
-      FROM message_usage WHERE timestamp >= ${since}`;
+      FROM message_usage WHERE group_id = ${this.groupId} AND timestamp >= ${since}`;
     return rows.map((r) => ({
       uuid: r.uuid,
       user: r.user,
@@ -272,7 +277,8 @@ export class PostgresStorage implements Storage {
   async getUsageMarkersSince(since: string): Promise<UsageMarker[]> {
     const rows = await this.sql<
       { id: string; user: string; at: string; model: string | null; weight: number }[]
-    >`SELECT id, "user", at, model, weight FROM usage_markers WHERE at >= ${since}`;
+    >`SELECT id, "user", at, model, weight FROM usage_markers
+      WHERE group_id = ${this.groupId} AND at >= ${since}`;
     return rows.map((r) => ({
       id: r.id,
       user: r.user,

@@ -3,7 +3,7 @@ import { loadConfig } from "../lib/config.js";
 import { resolveServerUrl } from "../lib/backend.js";
 import { applySharedJoin, probeSharedGroup } from "../lib/setup.js";
 import { withPrompts, type Prompts } from "../lib/prompt.js";
-import { runDaemonRestart, runDaemonStart } from "./daemon.js";
+import { clearAuthRejected, runDaemonRestart, runDaemonStart } from "./daemon.js";
 
 interface InitOptions {
   reconfigure?: boolean;
@@ -50,8 +50,13 @@ export async function runInit(opts: InitOptions = {}): Promise<void> {
     }
     // Nothing left to do by hand — bring the observer up now. On a reconfigure we
     // restart so the running process picks up the new backend, not the old one.
-    if (opts.reconfigure || existing) await runDaemonRestart();
-    else await runDaemonStart();
+    if (opts.reconfigure || existing) {
+      // The just-replaced token may have left a stale `authRejected` latch in
+      // state.json; clear it so the TUI doesn't route straight to re-init (§13).
+      const fresh = await loadConfig();
+      if (fresh) clearAuthRejected(fresh);
+      await runDaemonRestart();
+    } else await runDaemonStart();
     console.log(
       "The observer runs in the background — stop it any time with `ccshare daemon stop`."
     );

@@ -23,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import {
   acquireLock,
   makeLogger,
+  reassertLock,
   releaseLock,
   type DaemonPaths,
   type Logger,
@@ -42,6 +43,14 @@ export interface DaemonDeps {
   logger?: Logger;
   /** Resolve the active name fresh each tick so hand-offs apply without restart. */
   resolveName?: () => Promise<string> | string;
+  /**
+   * Re-assert single-instance ownership. Called at the very top of every tick — a
+   * `false` return means a live peer owns the lock, so this instance is a duplicate
+   * and must surrender before doing any work (no poll, no ingest, no `state.json`
+   * write). Wired to {@link reassertLock} by {@link startDaemon}; omitted in unit
+   * tests that don't exercise the lock. Its absence disables the gate (never blocks).
+   */
+  ensureOwner?: () => boolean;
   // injectable seams for tests
   now?: () => number;
   fetchImpl?: typeof fetch;
@@ -49,6 +58,14 @@ export interface DaemonDeps {
 }
 
 const MAX_BACKOFF_MS = 5 * 60_000;
+
+/**
+ * How often {@link startDaemon} re-verifies single-instance ownership, independent
+ * of the poll interval and its exponential backoff — so a duplicate exits within
+ * seconds even while the loop sleeps through a long backoff, instead of lingering as
+ * an invisible second daemon.
+ */
+const LOCK_GUARD_INTERVAL_MS = 5_000;
 
 /**
  * How recently this machine must have produced Code activity for an
@@ -200,6 +217,17 @@ export class Daemon {
    */
   async tick(): Promise<{ pollFailed: boolean }> {
     const { configDir, paths } = this.deps;
+
+    // Single-instance gate: before touching anything, make sure we still own the
+    // lock. If a live peer holds it we are a duplicate (a lost/replaced pidfile let
+    // us start) — surrender immediately, before we can poll, ingest, or overwrite
+    // state.json. This is what makes a second daemon unable to do any damage.
+    if (this.deps.ensureOwner && !this.deps.ensureOwner()) {
+      this.log.warn("another daemon owns the lock — this instance is a duplicate; exiting");
+      this.stopped = true;
+      return { pollFailed: false };
+    }
+
     const nowIso = new Date(this.nowMs()).toISOString();
 
     const account = await resolveAccount(configDir);
@@ -453,8 +481,11 @@ function jitter(ms: number): number {
  * `ccshare daemon run` process calls.
  */
 export async function startDaemon(deps: DaemonDeps): Promise<void> {
-  acquireLock(deps.paths.pidFile);
-  const daemon = new Daemon(deps);
+  const { pidFile } = deps.paths;
+  acquireLock(pidFile);
+  // The per-tick gate (checked before any work) and a backoff-independent guard
+  // timer (prompt exit even mid-sleep) share one reconciliation against the pidfile.
+  const daemon = new Daemon({ ...deps, ensureOwner: () => reassertLock(pidFile) });
 
   const shutdown = (sig: string) => {
     deps.logger?.info?.(`received ${sig}`);
@@ -463,10 +494,19 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
+  const guard = setInterval(() => {
+    if (!reassertLock(pidFile)) {
+      deps.logger?.warn?.("lost single-instance lock to a live peer — exiting as duplicate");
+      daemon.stop();
+    }
+  }, LOCK_GUARD_INTERVAL_MS);
+  guard.unref?.(); // never keep the process alive just for the guard
+
   try {
     await daemon.run();
   } finally {
+    clearInterval(guard);
     await deps.sink.close().catch(() => {});
-    releaseLock(deps.paths.pidFile);
+    releaseLock(pidFile);
   }
 }

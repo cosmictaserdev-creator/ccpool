@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   AlreadyRunningError,
@@ -43,6 +43,33 @@ export function spawnDaemon(cfg: Config): { pid: number } | { already: number } 
     logFile: paths.logFile,
   });
   return { pid };
+}
+
+/**
+ * Clear the `authRejected` latch in each config dir's `state.json`.
+ *
+ * The daemon latches `authRejected` when the server rejects its bearer (§13); it
+ * lives in `state.json` until the daemon's next clean write. On a fresh re-init that
+ * latch is stale — a new, valid token has just been minted — but the TUI reads
+ * `state.json` every 2s and, seeing the stale latch, routes straight back to the
+ * re-init screen (stopping the just-spawned daemon before it can clear the latch
+ * itself). That loops forever. Clearing the latch here breaks the loop; the fresh
+ * daemon's first tick then owns `state.json` as usual.
+ */
+export function clearAuthRejected(cfg: Config): void {
+  const dirs = cfg.configDirs.length ? cfg.configDirs : [process.cwd()];
+  for (const dir of dirs) {
+    const { stateFile } = pathsFor(dir);
+    if (!existsSync(stateFile)) continue;
+    try {
+      const state = JSON.parse(readFileSync(stateFile, "utf8")) as LocalState;
+      if (!state.account?.authRejected) continue;
+      state.account.authRejected = false;
+      writeFileSync(stateFile, JSON.stringify(state, null, 2) + "\n", "utf8");
+    } catch {
+      // best effort — the fresh daemon's next write will clear it anyway
+    }
+  }
 }
 
 /** SIGTERM the running observer. No console output. */

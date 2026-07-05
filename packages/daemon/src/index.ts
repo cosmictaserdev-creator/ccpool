@@ -9,6 +9,7 @@ export {
   isAlive,
   readPid,
   acquireLock,
+  reassertLock,
   releaseLock,
   makeLogger,
   AlreadyRunningError,

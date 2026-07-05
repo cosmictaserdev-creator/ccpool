@@ -12,7 +12,8 @@ import {
   type TickBatch,
 } from "@ccshare/core";
 import { Daemon, type DaemonDeps } from "../src/daemon.js";
-import { acquireLock, AlreadyRunningError, daemonPaths } from "../src/lifecycle.js";
+import { acquireLock, AlreadyRunningError, daemonPaths, reassertLock } from "../src/lifecycle.js";
+import { existsSync, unlinkSync } from "node:fs";
 
 const NOW = Date.parse("2026-06-29T20:00:00.000Z");
 
@@ -382,5 +383,62 @@ describe("single-instance lock", () => {
 
     expect(() => acquireLock(pidFile)).not.toThrow();
     expect(readFileSync(pidFile, "utf8").trim()).toBe(String(process.pid));
+  });
+});
+
+// The lock is re-checked for the daemon's whole life, not just at boot — this is
+// what stops the orphan-with-no-pidfile duplicates that slipped past the atomic
+// acquire every previous time.
+describe("continuous single-instance ownership (reassertLock)", () => {
+  const DEAD_PID = 0x7ffffffe;
+
+  it("keeps ownership when the pidfile still records us (no writes)", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccshare-reassert-"));
+    const { pidFile } = daemonPaths(root, "/cfg");
+    acquireLock(pidFile);
+    expect(reassertLock(pidFile)).toBe(true);
+    expect(readFileSync(pidFile, "utf8").trim()).toBe(String(process.pid));
+  });
+
+  it("self-heals a pidfile that was deleted out from under a running daemon", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccshare-reassert-"));
+    const { pidFile } = daemonPaths(root, "/cfg");
+    acquireLock(pidFile);
+    unlinkSync(pidFile); // e.g. a manual rm, or a crashed starter's reclaim
+    expect(reassertLock(pidFile)).toBe(true); // reclaimed
+    expect(readFileSync(pidFile, "utf8").trim()).toBe(String(process.pid));
+  });
+
+  it("reclaims a pidfile a dead owner left behind", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccshare-reassert-"));
+    const { pidFile } = daemonPaths(root, "/cfg");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(pidFile, String(DEAD_PID));
+    expect(reassertLock(pidFile)).toBe(true);
+    expect(readFileSync(pidFile, "utf8").trim()).toBe(String(process.pid));
+  });
+
+  it("surrenders when a *live* peer holds the pidfile, leaving it untouched", () => {
+    const root = mkdtempSync(join(tmpdir(), "ccshare-reassert-"));
+    const { pidFile } = daemonPaths(root, "/cfg");
+    mkdirSync(root, { recursive: true });
+    // pid 1 (launchd/init) is always alive and is never us — a stand-in for a live
+    // peer daemon that won the pidfile.
+    writeFileSync(pidFile, "1");
+    expect(reassertLock(pidFile)).toBe(false); // we are the duplicate → surrender
+    expect(readFileSync(pidFile, "utf8").trim()).toBe("1"); // peer's lock left intact
+  });
+});
+
+describe("a duplicate daemon does no work and stops itself", () => {
+  it("surrenders at the top of the tick without polling, ingesting, or writing state", async () => {
+    const h = setup({ five_hour: { utilization: 42, resets_at: null } });
+    const before = h.fetchCalls();
+    const daemon = new Daemon({ ...h.deps, ensureOwner: () => false });
+    const res = await daemon.tick();
+
+    expect(res.pollFailed).toBe(false);
+    expect(h.fetchCalls()).toBe(before); // never polled
+    expect(existsSync(h.stateFile)).toBe(false); // never wrote state.json
   });
 });

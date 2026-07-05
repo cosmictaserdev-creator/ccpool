@@ -101,6 +101,42 @@ export function releaseLock(pidFile: string): void {
   }
 }
 
+/**
+ * Re-assert single-instance ownership for an **already-running** daemon.
+ *
+ * {@link acquireLock} is a point-in-time check at startup — but the pidfile can
+ * later vanish (a manual `rm`, a crashed starter's stale-reclaim `unlink`) or be
+ * replaced, and nothing re-verifies it. That is exactly how duplicate daemons have
+ * slipped past the atomic lock every time: with no pidfile, `isDaemonRunning`
+ * reports "down", a second daemon starts legitimately, and both then run invisibly
+ * (neither backed by the pidfile). The only durable defence is for a live daemon to
+ * keep reconciling itself against the pidfile — the single source of truth for "who
+ * is the daemon" — for its whole life, not just at boot.
+ *
+ * Each call reconciles and returns whether we (still) hold the lock:
+ *  - the pidfile records us → we own it, keep running.
+ *  - it holds a **different live** pid → that daemon won; we are the duplicate → a
+ *    `false` return tells the caller to surrender (stop and exit).
+ *  - it's missing, empty, or holds a **dead** pid → self-heal by re-acquiring
+ *    atomically. If a live peer wins that race we surrender; otherwise we reclaim it.
+ *
+ * When we already own it this is a single `read` and no writes, so it's cheap enough
+ * to call on a tight timer.
+ */
+export function reassertLock(pidFile: string): boolean {
+  const owner = readPid(pidFile);
+  if (owner === process.pid) return true; // still ours — the common case, no writes
+  if (owner !== null && isAlive(owner)) return false; // a live peer owns it — we lost
+  // Missing / empty / dead owner: try to (re)claim it. acquireLock only throws when
+  // a *live* peer holds it, which is precisely when we must surrender.
+  try {
+    acquireLock(pidFile);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 /** Minimal leveled logger. stdout is redirected to the log file when detached. */

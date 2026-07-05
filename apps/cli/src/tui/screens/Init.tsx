@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
 import { isValidName, type Config } from "@ccshare/core";
 import { applySharedJoin, probeSharedGroup, type SharedProbe } from "../../lib/setup.js";
-import { spawnDaemon, stopDaemonProcess } from "../../commands/daemon.js";
+import { clearAuthRejected, spawnDaemon, stopDaemonProcess } from "../../commands/daemon.js";
 import { Clawd } from "../designs/parts.js";
 import { P } from "../designs/palette.js";
 import { useTermSize } from "../use-term-size.js";
@@ -166,6 +166,10 @@ export function InitScreen({
       setCommit("error");
       return;
     }
+    // A prior daemon may have latched `authRejected` into state.json (§13). We just
+    // minted a fresh, valid token, so that latch is stale — clear it before the
+    // status screen reads it, or gatherView would bounce us right back here in a loop.
+    clearAuthRejected(res.config);
     spawnDaemon(res.config);
     onDone(res.config);
   };

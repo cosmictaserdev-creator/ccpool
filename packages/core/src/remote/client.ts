@@ -30,8 +30,32 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * Per-request ceiling. A server that *refuses* a connection rejects `fetch`
+ * promptly, but one that's unreachable in a way that *hangs* (packets dropped, a
+ * wedged server that accepts the socket but never answers, a stalled DNS lookup)
+ * would leave `fetch` pending forever. Without this, the reader's 2s poll stacks
+ * hung requests and keeps painting the last-known view — never noticing the
+ * server is down. The timeout turns that into a prompt rejection, so callers fall
+ * back to `state.json` and surface "can't reach the server" exactly as they do
+ * for a refused connection.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 interface HttpOptions {
   fetchImpl?: typeof fetch;
+  /** Override the per-request timeout (ms). Defaults to {@link DEFAULT_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
+/**
+ * Merge an abort-on-timeout signal into a fetch init. `AbortSignal.timeout` is
+ * available on both supported runtimes (Node ≥20, Bun); on firing it rejects the
+ * fetch with a `TimeoutError` — not an `ApiRequestError`, so callers classify it
+ * as unreachable (stale), never as logged-out.
+ */
+function withTimeout(init: RequestInit, timeoutMs: number): RequestInit {
+  return { ...init, signal: AbortSignal.timeout(timeoutMs) };
 }
 
 async function throwApiError(res: Response): Promise<never> {
@@ -50,20 +74,28 @@ async function throwApiError(res: Response): Promise<never> {
 /** Thin fetch wrapper for the auth endpoints (init/join/login flows). */
 export class CcshareClient {
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(
     private readonly baseUrl: string,
     opts: HttpOptions = {}
   ) {
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {
-    const res = await this.fetchImpl(new URL(path, this.baseUrl), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await this.fetchImpl(
+      new URL(path, this.baseUrl),
+      withTimeout(
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        this.timeoutMs
+      )
+    );
     if (!res.ok) await throwApiError(res);
     return (await res.json()) as T;
   }
@@ -75,7 +107,7 @@ export class CcshareClient {
     if (memberName) {
       url.searchParams.set("memberName", memberName);
     }
-    const res = await this.fetchImpl(url, { method: "GET" });
+    const res = await this.fetchImpl(url, withTimeout({ method: "GET" }, this.timeoutMs));
     if (!res.ok) await throwApiError(res);
     return (await res.json()) as GroupLookupResponse;
   }
@@ -96,6 +128,7 @@ export class CcshareClient {
 /** The daemon's sink: one POST per tick, bearer-authenticated. */
 export class HttpIngestSink implements IngestSink {
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(
     private readonly baseUrl: string,
@@ -103,12 +136,14 @@ export class HttpIngestSink implements IngestSink {
     opts: HttpOptions = {}
   ) {
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   async bootstrap(): Promise<IngestBootstrap> {
-    const res = await this.fetchImpl(new URL("/v1/bootstrap", this.baseUrl), {
-      headers: { authorization: `Bearer ${this.token}` },
-    });
+    const res = await this.fetchImpl(
+      new URL("/v1/bootstrap", this.baseUrl),
+      withTimeout({ headers: { authorization: `Bearer ${this.token}` } }, this.timeoutMs)
+    );
     if (!res.ok) await throwApiError(res);
     const body = (await res.json()) as BootstrapResponse;
     return { accountId: body.accountId, samples: body.samples };
@@ -116,11 +151,17 @@ export class HttpIngestSink implements IngestSink {
 
   async ingest(batch: TickBatch, meta: IngestMeta): Promise<void> {
     const body: IngestRequest = { at: meta.at, accountId: meta.accountId, ...batch };
-    const res = await this.fetchImpl(new URL("/v1/ingest", this.baseUrl), {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${this.token}` },
-      body: JSON.stringify(body),
-    });
+    const res = await this.fetchImpl(
+      new URL("/v1/ingest", this.baseUrl),
+      withTimeout(
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${this.token}` },
+          body: JSON.stringify(body),
+        },
+        this.timeoutMs
+      )
+    );
     if (res.ok) return;
     if (res.status === 409) {
       // The server knows the binding; it refused the tick outright (§1.5). We
@@ -142,6 +183,7 @@ export class HttpIngestSink implements IngestSink {
  */
 export class HttpViewSource implements ViewSource {
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
   private cache: { etag: string; view: SharedView } | null = null;
 
   constructor(
@@ -150,12 +192,16 @@ export class HttpViewSource implements ViewSource {
     opts: HttpOptions = {}
   ) {
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   async fetchView(): Promise<SharedView> {
     const headers: Record<string, string> = { authorization: `Bearer ${this.token}` };
     if (this.cache) headers["if-none-match"] = this.cache.etag;
-    const res = await this.fetchImpl(new URL("/v1/view", this.baseUrl), { headers });
+    const res = await this.fetchImpl(
+      new URL("/v1/view", this.baseUrl),
+      withTimeout({ headers }, this.timeoutMs)
+    );
     if (res.status === 304 && this.cache) {
       await res.body?.cancel().catch(() => {});
       return this.cache.view;

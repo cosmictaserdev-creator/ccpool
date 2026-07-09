@@ -95,6 +95,20 @@ describe("HttpViewSource", () => {
     users: [],
   };
 
+  it("rejects when a hung server never answers (so the reader shows stale, not a frozen view)", async () => {
+    // A fetch that accepts the socket but never responds — it only settles when
+    // the request's own abort signal fires. Without a timeout this awaits forever.
+    const hangingFetch = ((_input: unknown, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject((init.signal as AbortSignal).reason));
+      })) as typeof fetch;
+    const source = new HttpViewSource(BASE, "ccs_tok", { fetchImpl: hangingFetch, timeoutMs: 20 });
+    const err = await source.fetchView().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    // Not an ApiRequestError → gatherView classifies it as unreachable (stale), not logged-out.
+    expect(err).not.toBeInstanceOf(ApiRequestError);
+  });
+
   it("caches by ETag and reuses the cached view on 304", async () => {
     const calls: (string | undefined)[] = [];
     const source = new HttpViewSource(BASE, "ccs_tok", {

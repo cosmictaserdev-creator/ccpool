@@ -1,163 +1,80 @@
-<div>
-  <h1 align="center">ccpool 👾</h1>
-  <p align="center">
-    <img src="https://img.shields.io/badge/Node-%E2%89%A520-black?style=for-the-badge&logo=node.js&logoColor=white" alt="Node >= 20" />
-    <img src="https://img.shields.io/badge/Bun-supported-black?style=for-the-badge&logo=bun&logoColor=white" alt="Bun supported" />
-    <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License" />
-  </p>
-  <img width="1000" height="500" alt="ccpool-extra-large(1)" src="https://github.com/user-attachments/assets/cb493208-5ef8-4bc6-8d5b-41a740a4a41d" />
-  <p>
-    > a cli to fairly share one claude subscription across a group
-  </p>
-</div>
+# ccpool 👾
 
-<hr/>
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-black?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Bun](https://img.shields.io/badge/bun-supported-black?style=flat-square&logo=bun)](https://bun.sh)
+[![claude-code](https://img.shields.io/badge/claude--code-black?style=flat-square)](https://claude.ai/code)
 
-## 💡 What is it?
+**Anthropic tells you the account is at 60%. ccpool tells you who got it there.**
 
-A group sharing **one Claude subscription** constantly collides on the limits:
-someone burns the 5-hour window in the morning and everyone else is locked out by
-noon; someone quietly eats most of the weekly cap and nobody knew until it was
-gone. Anthropic only reports one account-wide number, so there's no built-in way
-to see _who_ used _how much_.
+When a group shares one Claude subscription (Pro or Max), everyone collides on the same limits: someone burns the 5-hour window by noon, someone quietly eats the weekly cap, and nobody finds out until it's gone. ccpool gives the group a live, shared view of the account's usage broken down by person, so fair use becomes something you can see and negotiate instead of guess at.
 
-`ccpool` gives that group a **shared, live picture** of the account's usage and
-who's driving it, so they can split it fairly and self-regulate.
+<img width="1344" height="616" alt="image" src="https://github.com/user-attachments/assets/cd2e7326-6849-446b-9e65-5a121c2bb6d4" />
 
-It is a **read-only observer plus a shared ledger**. It never sits in the request
-path, never proxies, never blocks requests, and never touches auth beyond reading
-the token Claude Code already stored. Each participant runs ccpool on their own
-machine, everyone joins **one shared ledger** — hosted for you (just two
-passwords) or a database you run yourself — and the tool shows:
-
-- **how full each shared window is right now** (5-hour, weekly, weekly-Opus) with
-  live reset countdowns — the account-wide truth from Anthropic's endpoint;
-- the **per-person split** of who drove that usage, built from Claude Code activity
-  seen while the daemon runs, credited to the active name on each machine — with
-  each person's token total and whether they're active right now (anything untied to
-  a known name shows as `unknown`).
-
-> It does **not** increase anyone's limit, multiplex the subscription, or enforce
-> anything. It makes shared usage _legible_ so a group can govern itself — deciding
-> who backs off and when is left to the people, not the tool.
-
-## 👾 How it works
-
-- **Shared tank level** (the % bars) is one account-wide number every participant
-  reads from Anthropic's usage endpoint.
-- **Per-person split** is built locally: a background daemon tails the Claude Code
-  transcripts on each machine and credits new activity to the active name, writing
-  it to the shared DB. Summed across everyone, that's the breakdown.
-- **No IPC.** The daemon writes an atomic local `state.json` and one batched
-  ledger write per tick; the TUI and statusline just read. Nothing talks to
-  another process directly.
-- **Cheap to watch.** The live view refreshes every 2 seconds, but the heavy work
-  only reruns when the ledger actually changed (a change-token / ETag check) — a
-  steady-state refresh costs one single-row read or a bodyless HTTP 304.
-- **Only new activity counts.** On startup the daemon baselines each transcript at
-  its current end-of-file and ingests only lines appended after — old history is
-  never backfilled.
-- **One way to share.** Everyone authenticates to the ccpool server with a group
-  password plus a personal member password — nobody manages a database, and nobody
-  can write usage as somebody else. A group can run its own server if it prefers
-  (see [Self-hosting the server](#self-hosting-the-server)).
-- **Runs on Node (≥20) and Bun.**
+Available as a terminal dashboard (`ccpool tui`), a one-shot snapshot (`ccpool status`), and a Claude Code statusline (`ccpool statusline`).
 
 ---
 
-## 🚀 Quick Start
+## What you get
 
-### 1. Prerequisites
+- Live usage bars for all three limits (the 5-hour window, the weekly cap, and the weekly Opus cap) with a countdown to each reset. These are pulled from Anthropic's own usage endpoint, so they match what the account enforces.
+- A per-person breakdown: each member's share of each limit, their token count, and whether they're coding right now.
+- A statusline for Claude Code, so you can watch the shared limits without leaving your editor.
 
-- [Node.js](https://nodejs.org) ≥ 20 (or [Bun](https://bun.sh)) and
-  [pnpm](https://pnpm.io)
-- Claude Code installed and signed in on each machine (ccpool reads the token it
-  already stored — it never logs you in)
-- Nothing else to set up: every machine reaches the shared ledger over HTTP through
-  the ccpool server. You only choose two passwords at init — no database to run,
-  no credentials to hand out. (A group can point at its own self-hosted server with
-  `CCPOOL_SERVER_URL`; see [Self-hosting the server](#self-hosting-the-server).)
+> Usage that ccpool can't tie to a person (someone using claude.ai in the browser, for example) shows up as `unknown`. And to be clear about what ccpool is: it observes and reports. It can't raise your limits or block anyone, and it deliberately has no budgets or quotas. It makes the sharing visible and leaves fair use to the group.
 
-### 2. Build the CLI
+---
 
-```bash
-pnpm install
-pnpm build
-```
+## How it works
 
-This produces the `ccpool` binary at `apps/cli/dist/cli.js`. Run it with
-`node apps/cli/dist/cli.js <command>`, or link it for a global `ccpool`:
+Everyone in the group runs ccpool on their own machine and joins one shared ledger. A small background daemon on each machine checks Anthropic's usage endpoint for the account-wide limits, watches your local Claude Code activity to figure out which part of that usage is yours, and writes both to the ledger under your name. Put everyone's entries together and you get one set of account-wide bars, split by person.
 
-```bash
-pnpm link:cli   # then just `ccpool <command>`
-```
+ccpool is read-only: it never proxies your requests or touches your login. It reads the token Claude Code already saved and the transcripts on your disk, and it only counts activity from the moment you start the daemon, not your history.
 
-The examples below use `ccpool` for brevity.
+The ledger lives on a ccpool server. By default that's the hosted one, so there's nothing to deploy, but the server is open source and a group can [run its own](#%EF%B8%8F-self-hosting-the-server).
 
-### 3. Initialise (required first run)
+---
+
+## Requirements
+
+- [Node.js](https://nodejs.org) ≥ 20 (or [Bun](https://bun.sh))
+- Claude Code installed and signed in on each machine
+
+---
+
+## Quick Start
 
 ```bash
-ccpool        # unconfigured → a guided onboarding wizard; configured → the live view
+npm install -g ccpool   # or run it once with: npx ccpool
+ccpool                  # onboarding, then the live view
 ```
 
-Bare `ccpool` opens a TUI. On a fresh machine it walks you through onboarding one
-step at a time: choose a **name** (letters, digits, hyphens), then two passwords —
-and nothing else:
+The first run walks you through onboarding: pick a name, a **group password** everyone in the group shares (it's what lets a machine join), and a **member password** that's yours alone (it stops anyone else from reporting usage under your name). ccpool detects which Claude account you're on and starts the daemon for you. From then on `ccpool` opens straight to the live view.
 
-- the **group password** — everyone in the group uses the same one; knowing it is
-  what lets a machine join the group at all. It exists because the account
-  identity that locates your group is reported by the client — anyone could
-  claim your account's email — so identity alone never grants access, only
-  this shared secret does;
-- your **member password** — yours alone; it protects your name, so nobody else
-  can join or report usage as you.
+The first person to run it creates the group; everyone after joins with the group password. Onboarding is also scriptable: every prompt has a flag (`ccpool init --name sam --yes`, with `CCPOOL_GROUP_PASSWORD` / `CCPOOL_MEMBER_PASSWORD` for CI).
 
-The group itself is tied to the Claude account you're signed into (resolved
-automatically — never typed). The first person to init creates the group (after a
-confirmation); everyone after joins it with the group password.
+---
 
-Once configured, `ccpool` opens straight to the live view (press **c** there to
-reconfigure); reconfiguring re-runs the same two-password join and restarts the
-daemon. The flow is scriptable through the `ccpool init` flag command — every
-prompt has a flag, so it runs non-interactively:
+## Usage
 
 ```bash
-# prefer the env vars in CI — flags leak into shell history
-CCPOOL_GROUP_PASSWORD=… CCPOOL_MEMBER_PASSWORD=… \
-  ccpool init --name sam --yes
+# the live shared view (opens onboarding if not set up yet)
+ccpool
+
+# print a one-shot snapshot and exit
+ccpool status
+
+# compact one-liner for Claude Code's status bar
+ccpool statusline
+
+# list everyone in the group
+ccpool users
+
+# hand this machine off to another person
+ccpool config set name alex
 ```
 
-Check what ccpool sees at any time (changes nothing):
-
-```bash
-ccpool doctor
-```
-
-### 4. Start the daemon
-
-```bash
-ccpool daemon start          # runs detached in the background
-ccpool daemon status         # is it running? how fresh is state.json?
-ccpool daemon stop
-ccpool daemon restart
-```
-
-From now on your live usage flows into the shared DB under your current name.
-
-### 5. Watch usage
-
-```bash
-ccpool            # opens the TUI: onboarding if unconfigured, else the live view
-                   #   press r to re-initialize (name, passwords, daemon)
-ccpool tui        # jump straight to the live shared view (alias: ccpool live)
-                   #   Tab switch view (⇧Tab reverses) · ↑↓ scroll · r re-init · q quit
-ccpool status     # one-shot snapshot to stdout
-```
-
-`status` prints a single frame — coloured when stdout is a terminal, clean plain
-text when piped or redirected (so `status | grep` and `status > file` stay tidy).
-It targets a 70-column terminal and sheds columns gracefully on narrower ones:
+`ccpool` and `ccpool status` show the same thing: the overall account tank on top and each person's slice below it.
 
 ```
  ▐▛███▜▌   ccpool · status  ·  you are sam
@@ -175,56 +92,13 @@ members
    3 unknown   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%   0%  idle
 ```
 
-The header is the overall account tank; the member rows are each person's slice of
-it (summing to the header per window), plus whether they're **active** — holding any
-of the 5-hour window right now. `unknown` is always listed and absorbs usage the
-Code split can't see (e.g. claude.ai chat).
-
-`ccpool tui` shows the same data live and adds three interchangeable layouts
-(**overview · split · mono**, cycle with `Tab`, `⇧Tab` reverses), per-person token
-totals, and scrolling for large groups. The views fill the terminal and reflow on
-resize; when the database is unreachable but the tank is still cached, the member
-table shows greyed `xxxx` placeholder rows and a "can't reach the database" line
-until it's back.
-
-### 6. Statusline (optional)
-
-A compact one-liner for Claude Code's status bar (reads `state.json` only — no
-network):
-
-```bash
-ccpool statusline
-# ◐ 5h 60% · wk 30% · you sam · ● db
-```
-
----
-
-## 🧑‍🤝‍🧑 Sharing & day-to-day
-
-```bash
-ccpool users                       # list participants in the shared ledger
-ccpool config set name alex        # hand off the machine to another person
-ccpool config get                  # show current config
-```
-
-Names are just labels, not machines (letters, digits, and hyphens, up to 32
-chars) — several people can share a machine and hand off by changing the name.
-Whoever's name is set when activity is ingested gets credited. A hand-off asks for
-the target member's password (names are protected) and mints a fresh token, so
-ccpool restarts the daemon for you to pick it up. Adding a brand-new member goes
-through `ccpool init`.
-
-ccpool deliberately has **no budgets or quotas** — it reports the reality of who
-used what and leaves it to the group to coordinate how much anyone should use.
+Usage is credited to whatever name the machine is set to, so switching the name switches who gets credited. The switch asks for that person's member password.
 
 ---
 
 ## 🖥️ Self-hosting the server
 
-The server is open too, and a group can run its own instead of the default host.
-It's multi-tenant (many groups on one server, each group's ledger isolated by a
-`group_id` in one shared database) and runs on **libSQL** — one `DATABASE_URL`,
-either a local SQLite file or a remote `libsql://` (Turso):
+The server is multi-tenant (many groups on one server, each ledger isolated by a `group_id` in one shared database) and runs on **libSQL**. One `DATABASE_URL` covers both a local SQLite file and a remote `libsql://` (Turso):
 
 ```bash
 # local file
@@ -234,11 +108,7 @@ DATABASE_URL=file:/var/lib/ccpool/server.db PORT=8787 node apps/server/dist/inde
 DATABASE_URL=libsql://your-db.turso.io CCPOOL_DB_AUTH_TOKEN=… PORT=8787 node apps/server/dist/index.js
 ```
 
-Point CLIs at your server with `CCPOOL_SERVER_URL=https://your-host` when running
-`ccpool init`. Run it behind TLS — the CLI refuses plain `http://` for anything
-but localhost, because the bearer token rides on every request. Passwords are
-stored as salted scrypt hashes and tokens as sha256 hashes; the server never keeps
-a usable credential.
+Point CLIs at your server with `CCPOOL_SERVER_URL=https://your-host` when running `ccpool init`. Run it behind TLS: the bearer token rides on every request, so the CLI refuses plain `http://` for anything but localhost. Passwords are stored as salted scrypt hashes and tokens as sha256 hashes; the server never keeps a usable credential.
 
 ## 🗂️ Project layout
 
@@ -253,9 +123,7 @@ apps/
   web/                # marketing site (Astro)
 ```
 
-Config lives in `~/.ccpool/` (`config.json`, the per-account `state.json`, logs,
-and a `0600` token file holding the server bearer). Override the location with
-`CCPOOL_DIR`.
+Config lives in `~/.ccpool/` (`config.json`, the per-account `state.json`, logs, and a `0600` token file holding the server bearer). Override the location with `CCPOOL_DIR`.
 
 ## 🧪 Development
 
@@ -267,16 +135,13 @@ pnpm test         # run the suite on Node
 pnpm test:bun     # run the same suite on Bun
 ```
 
-The full suite runs on both Node and Bun in CI. The storage and registry contract
-suites and the server integration tests run on a libSQL `:memory:` database, so the
-whole suite is self-contained — no database to provision, nothing to spin up.
+CI runs the full suite on both Node and Bun. The storage and registry contract suites and the server integration tests use a libSQL `:memory:` database, so nothing needs to be provisioned or spun up.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions welcome — bugs, features, or docs. See the
-[GitHub repository](https://github.com/hexxt-git/ccpool) to get started.
+Contributions welcome, whether bugs, features, or docs. See the [GitHub repository](https://github.com/hexxt-git/ccpool) to get started.
 
 ## 📜 License
 

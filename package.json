@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:bun": "bun run vitest run",
     "link:cli": "pnpm build && pnpm --filter ccpool run link",
+    "unlink:cli": "pnpm --filter ccpool run unlink",
     "prepare": "husky"
   },
   "devDependencies": {

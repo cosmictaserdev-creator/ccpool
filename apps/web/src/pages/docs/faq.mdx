@@ -1,0 +1,178 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: FAQ
+description: Frequently asked questions about ccpool — sharing one Claude subscription across a team, tracking Claude Code usage per person, privacy, account safety, and accuracy.
+---
+
+Common questions about sharing a Claude subscription with ccpool. New here? Start
+with the [Introduction](/docs) or jump to [Installation](/docs/installation).
+
+## The basics
+
+**What does ccpool do?**
+
+When a group shares **one Claude subscription** (Pro or Max), everyone collides on the
+same limits — the 5-hour window, the weekly cap, and the weekly Opus cap. Anthropic
+only tells you the account is at, say, 60%; it never tells you _who_ got it there.
+ccpool reconstructs that per-person breakdown locally and shares it, so you get one set
+of account-wide usage bars **split by member**.
+
+**Who is it for?**
+
+Any group pooling a single Claude plan — a startup team, a couple of friends, a family,
+a lab. If two or more people sign into the same Claude account and step on each other's
+limits, ccpool makes the sharing visible.
+
+**Does it work with Claude Pro, or only Max?**
+
+Both. ccpool reads whatever limits Anthropic reports for the account. Plans without a
+weekly Opus cap simply don't render that bar.
+
+**Is it free?**
+
+Yes. ccpool is open source, and the default hosted server is free to use. There's
+nothing to buy and nothing to deploy. A group that prefers to run its own server can —
+see [self-hosting](#cost-and-self-hosting).
+
+**What does "unknown" mean in the breakdown?**
+
+`unknown` is a normal, always-present row that absorbs any usage ccpool can't tie to a
+person: someone using claude.ai in the browser or the mobile app, activity while a
+member's daemon was off, or whatever the account was already using before ccpool
+started watching. The columns always add up to the real account tank, so anything not
+attributed to a member lands in `unknown`.
+
+## Account safety and terms
+
+**Will ccpool get my account banned?**
+
+ccpool never touches your login. It doesn't share, store, or transmit your Claude
+credentials, and it never signs in for you — it only reads the OAuth token Claude Code
+already saved on each machine, locally, to check the account's usage. It also never
+proxies your requests or sits in the request path.
+
+That said, ccpool doesn't change _how_ your group shares the account — pooling a single
+subscription across people is the premise, and whether that arrangement fits your plan's
+terms is between your group and Anthropic. ccpool just makes the sharing you're already
+doing visible.
+
+**Does ccpool use my API credits or an API key?**
+
+No. It's not an API client. It reads the same usage endpoint Claude Code already uses
+and tails the transcript files already on your disk. No API key, no extra billing.
+
+**Can it raise my limits or stop someone from hogging the account?**
+
+No — and that's deliberate. ccpool has no budgets, quotas, or throttles. It can't raise
+your limits, block anyone, or slow a request down. It reports; fair use stays a
+conversation for the group to have with real numbers in front of them.
+
+## Privacy and security
+
+**Can ccpool see my code or my prompts?**
+
+It reads your Claude Code transcript files locally to count tokens and figure out which
+usage is yours, but the content never leaves your machine. Only aggregate numbers — a
+token count credited to a name, plus the account-wide percentages — are written to the
+shared ledger. Prompts, responses, and code are never sent to the server.
+
+**What actually leaves my machine?**
+
+Per tick (about once a minute): your name, token counts for new activity, and the
+account-wide usage percentages Anthropic reported. That's it. Raw transcript lines and
+request contents stay local.
+
+**How are the passwords and tokens stored?**
+
+Joining uses two passwords — a shared **group password** (proves membership) and a
+per-name **member password** (stops anyone reporting usage under your name). The server
+never keeps a usable credential: passwords are stored as salted scrypt hashes and bearer
+tokens as sha256 hashes. Your machine keeps its bearer token in a `0600` file. The CLI
+refuses plain `http://` server URLs except on localhost.
+
+**Why two passwords?**
+
+The group password lets a machine join the group at all. The member password ties usage
+to _you_ — the server overwrites each ingested row's name with the authenticated member,
+so nobody can report usage under someone else's name.
+
+## Accuracy and attribution
+
+**How does it know which usage is mine?**
+
+Each machine can only see its own Claude Code activity. The daemon correlates **rises in
+the account tank** with the Claude Code messages happening on that machine in the same
+interval, then credits the difference to your name. Summed across everyone, that's the
+breakdown. The full method is in [Attribution](/docs/algorithm/attribution).
+
+**Is the per-person split exact?**
+
+It's a close reconstruction, not billing-grade accounting. Anthropic reports one
+account-wide number, so ccpool infers the split from timing and token weight. Usage it
+can't tie to a person falls to `unknown` rather than being guessed onto someone. For the
+edge cases it handles explicitly, see the [appendix of edge cases](/docs/algorithm#appendix--edge-cases-the-algorithm-bakes-in).
+
+**Why is there usage under "unknown" when everyone's running ccpool?**
+
+Usually browser or mobile use of claude.ai, a stretch when someone's daemon was off, or
+the account's level before ccpool started. It's not a bug — it's ccpool refusing to
+pin unattributable usage on the wrong person.
+
+**Does it count my usage from before I installed it?**
+
+No. ccpool baselines every transcript at its current end when the daemon starts and only
+counts activity from that moment forward. There's no backfill of your history.
+
+## Setup and usage
+
+**Do I have to keep a terminal window open?**
+
+No. A small background daemon runs on each machine and does the watching. You close the
+dashboard whenever you like; the daemon keeps the ledger current. `ccpool` opens the
+live view, `ccpool status` prints a one-shot snapshot, and `ccpool statusline` feeds
+Claude Code's status bar.
+
+**What if my daemon is off for a while?**
+
+Any account usage during that gap can't be tied to you, so it lands in `unknown`. When
+the daemon comes back it re-baselines and resumes — it won't retroactively claim the
+gap.
+
+**Two of us share one machine. What then?**
+
+Hand the machine off with `ccpool config set name alex` — it re-credits usage to the new
+name from the next tick (and asks for that person's member password).
+
+**Does everyone have to be on the same Claude account?**
+
+Yes. A group's ledger is bound to a single Claude account, and every machine must be
+signed into it. Sign a machine into a different account and ccpool halts its ledger
+writes and flags the conflict rather than mixing accounts.
+
+**Which operating systems does it run on?**
+
+Anywhere Claude Code and Node.js ≥ 20 (or Bun) run — macOS, Linux, and Windows.
+
+**How do I create a group vs. join one?**
+
+The first person to run ccpool **creates** the group; everyone after **joins** with the
+same group password and their own member password. See [Installation](/docs/installation#creating-vs-joining-a-group).
+
+## Cost and self-hosting
+
+**Do I need to run a server?**
+
+No. By default ccpool uses the hosted server, so there's nothing to deploy.
+
+**Can my group run its own server instead?**
+
+Yes. The server is open source and ships as its own package, `ccpool-server` —
+multi-tenant and running on libSQL (a local SQLite file or a remote `libsql://` / Turso
+URL). Point your CLIs at it with `CCPOOL_SERVER_URL`. See
+[Storage &amp; server](/docs/algorithm/storage-and-server) and the
+[self-hosting section](/docs/installation#self-hosting-the-server) of the install guide.
+
+---
+
+Still stuck? The [Algorithm docs](/docs/algorithm) cover the full pipeline, or open an
+issue on the project's repository.

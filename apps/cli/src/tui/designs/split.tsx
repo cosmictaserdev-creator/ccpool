@@ -87,7 +87,7 @@ export function split(
             right={scrollLabel(off, visible, model.members.length)}
           >
             {shown.map((u, i) => {
-              const col = personColor(u, off + i);
+              const col = personColor(model.members, u);
               const isUnknown = u.name === UNKNOWN_USER;
               return (
                 <Box key={off + i} flexDirection="column" marginTop={1}>

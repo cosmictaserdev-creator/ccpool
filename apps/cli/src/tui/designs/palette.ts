@@ -24,6 +24,16 @@ export const P = {
 export const M = { hi: "#f0e8c8", mid: "#a39d8e", lo: "#6a665d", track: "#322f2b" } as const;
 
 const PERSON = [P.blue, P.green, P.pink, P.coral, P.purple, P.amber, P.cyan];
-/** Stable per-row color; the reserved `unknown` row is faint gray. */
-export const personColor = (m: DesignMember, i: number): string =>
-  m.name === "unknown" ? P.faint : PERSON[i % PERSON.length]!;
+
+/** Stable per-user color: sort all users by name, then assign palette colors
+ * in that order. `unknown` is always the reserved faint gray. This way colors
+ * stay attached to a user even when usage ranks change (overtakes are visible).
+ */
+export const personColor = (all: readonly DesignMember[], m: DesignMember): string => {
+  if (m.name === "unknown") return P.faint;
+  const names = Array.from(new Set(all.map((x) => x.name)))
+    .filter((n) => n !== "unknown")
+    .sort((a, b) => a.localeCompare(b));
+  const idx = names.indexOf(m.name);
+  return idx < 0 ? P.faint : PERSON[idx % PERSON.length]!;
+};

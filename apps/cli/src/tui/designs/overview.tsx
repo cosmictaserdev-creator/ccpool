@@ -116,37 +116,40 @@ export function overview(
         <Box flexShrink={0}>
           <Rule w={inner - 4} color={P.faint} />
         </Box>
-        {shown.map((u, i) => (
-          <Box key={off + i} flexShrink={0}>
-            <Cell w={COL.rank}>
-              <Text color={P.faint}>{off + i + 1}</Text>
-            </Cell>
-            <Cell w={COL.member}>
-              <Text color={personColor(u, off + i)}>{u.name}</Text>
-              {u.isMe ? <Text color={personColor(u, off + i)}>◂</Text> : null}
-            </Cell>
-            <Cell w={fiveCol}>
-              <Text>
-                <Bar pct={u.byCap.five_hour ?? 0} width={barW} color={personColor(u, off + i)} />{" "}
-                {lpad(share(u, "five_hour"), 4)}
-              </Text>
-            </Cell>
-            <Cell w={COL.weekly} align="right">
-              <Text color={P.cream}>{share(u, "seven_day")}</Text>
-            </Cell>
-            {hasOpus ? (
-              <Cell w={COL.opus} align="right">
-                <Text color={P.cream}>{share(u, "seven_day_opus")}</Text>
+        {shown.map((u, i) => {
+          const col = personColor(model.members, u);
+          return (
+            <Box key={off + i} flexShrink={0}>
+              <Cell w={COL.rank}>
+                <Text color={P.faint}>{off + i + 1}</Text>
               </Cell>
-            ) : null}
-            <Cell w={COL.tokens} align="right">
-              <Text color={P.dim}>{tok(u.tokens)}</Text>
-            </Cell>
-            <Cell w={COL.status} align="right">
-              <StatusDot active={u.active} flip />
-            </Cell>
-          </Box>
-        ))}
+              <Cell w={COL.member}>
+                <Text color={col}>{u.name}</Text>
+                {u.isMe ? <Text color={col}>◂</Text> : null}
+              </Cell>
+              <Cell w={fiveCol}>
+                <Text>
+                  <Bar pct={u.byCap.five_hour ?? 0} width={barW} color={col} />{" "}
+                  {lpad(share(u, "five_hour"), 4)}
+                </Text>
+              </Cell>
+              <Cell w={COL.weekly} align="right">
+                <Text color={P.cream}>{share(u, "seven_day")}</Text>
+              </Cell>
+              {hasOpus ? (
+                <Cell w={COL.opus} align="right">
+                  <Text color={P.cream}>{share(u, "seven_day_opus")}</Text>
+                </Cell>
+              ) : null}
+              <Cell w={COL.tokens} align="right">
+                <Text color={P.dim}>{tok(u.tokens)}</Text>
+              </Cell>
+              <Cell w={COL.status} align="right">
+                <StatusDot active={u.active} flip />
+              </Cell>
+            </Box>
+          );
+        })}
       </Box>
       {model.unknownNote ? (
         <Box width={inner}>

@@ -91,14 +91,14 @@ Usage is credited to whatever name the machine is set to, so switching the name 
 
 ## Self-hosting the server
 
-By default ccpool uses the hosted server, so there's nothing to deploy. If your group would rather run its own, the server is open source, multi-tenant, and runs on **libSQL** — one `DATABASE_URL` covers both a local SQLite file and a remote `libsql://` (Turso):
+By default ccpool uses the hosted server, so there's nothing to deploy. If your group would rather run its own, the server ships as its own package, [`ccpool-server`](https://www.npmjs.com/package/ccpool-server) — open source, multi-tenant, and running on **libSQL**. One `DATABASE_URL` covers both a local SQLite file and a remote `libsql://` (Turso):
 
 ```sh
 # local file
-DATABASE_URL=file:/var/lib/ccpool/server.db PORT=8787 node apps/server/dist/index.js
+DATABASE_URL=file:/var/lib/ccpool/server.db PORT=8787 npx ccpool-server
 
 # remote libSQL / Turso
-DATABASE_URL=libsql://your-db.turso.io CCPOOL_DB_AUTH_TOKEN=… PORT=8787 node apps/server/dist/index.js
+DATABASE_URL=libsql://your-db.turso.io CCPOOL_DB_AUTH_TOKEN=… PORT=8787 npx ccpool-server
 ```
 
 Point CLIs at your server with `CCPOOL_SERVER_URL=https://your-host` when running `ccpool init`. Run it behind TLS: the bearer token rides on every request, so the CLI refuses plain `http://` for anything but localhost. Passwords are stored as salted scrypt hashes and tokens as sha256 hashes; the server never keeps a usable credential.

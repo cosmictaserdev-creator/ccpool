@@ -101,14 +101,14 @@ Usage is credited to whatever name the machine is set to, so switching the name 
 
 ## 🖥️ Self-hosting the server
 
-The server is multi-tenant (many groups on one server, each ledger isolated by a `group_id` in one shared database) and runs on **libSQL**. One `DATABASE_URL` covers both a local SQLite file and a remote `libsql://` (Turso):
+The server ships as its own package, [`ccpool-server`](https://www.npmjs.com/package/ccpool-server). It's multi-tenant (many groups on one server, each ledger isolated by a `group_id` in one shared database) and runs on **libSQL**. One `DATABASE_URL` covers both a local SQLite file and a remote `libsql://` (Turso):
 
 ```bash
 # local file
-DATABASE_URL=file:/var/lib/ccpool/server.db PORT=8787 node apps/server/dist/index.js
+DATABASE_URL=file:/var/lib/ccpool/server.db PORT=8787 npx ccpool-server
 
 # remote libSQL / Turso
-DATABASE_URL=libsql://your-db.turso.io CCPOOL_DB_AUTH_TOKEN=… PORT=8787 node apps/server/dist/index.js
+DATABASE_URL=libsql://your-db.turso.io CCPOOL_DB_AUTH_TOKEN=… PORT=8787 npx ccpool-server
 ```
 
 Point CLIs at your server with `CCPOOL_SERVER_URL=https://your-host` when running `ccpool init`. Run it behind TLS: the bearer token rides on every request, so the CLI refuses plain `http://` for anything but localhost. Passwords are stored as salted scrypt hashes and tokens as sha256 hashes; the server never keeps a usable credential.

@@ -115,25 +115,31 @@ importers:
 
   apps/server:
     dependencies:
-      '@ccpool/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@ccpool/storage-libsql':
-        specifier: workspace:*
-        version: link:../../packages/storage-libsql
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.27)
+      '@libsql/client':
+        specifier: ^0.14.0
+        version: 0.14.0
       hono:
         specifier: ^4.6.14
         version: 4.12.27
     devDependencies:
+      '@ccpool/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@ccpool/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
+      '@ccpool/storage-libsql':
+        specifier: workspace:*
+        version: link:../../packages/storage-libsql
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.19.2
         version: 4.22.4

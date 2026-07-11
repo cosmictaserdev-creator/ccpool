@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { serve } from "@hono/node-server";
 import { makeApp } from "./app.js";
 import { makeServerDeps, resolveServerBackend, type ServerBackendConfig } from "./backend.js";

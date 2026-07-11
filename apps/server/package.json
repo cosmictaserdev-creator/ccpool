@@ -1,33 +1,61 @@
 {
-  "name": "@ccpool/server",
+  "name": "ccpool-server",
   "type": "module",
   "version": "0.0.1",
-  "description": "Multi-tenant HTTP server for ccpool (Hono + libSQL) — the one path to the shared ledger.",
+  "description": "Multi-tenant HTTP server for ccpool (Hono + libSQL) — the one path to the shared ledger. Self-host it to run your own group.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ccpool",
+    "usage",
+    "quota",
+    "server",
+    "hono",
+    "libsql",
+    "turso",
+    "self-hosted"
+  ],
   "license": "MIT",
-  "private": true,
-  "exports": {
-    ".": {
-      "types": "./dist/app.d.ts",
-      "default": "./dist/app.js"
-    }
+  "author": "hexxt",
+  "homepage": "https://github.com/hexxt-git/ccpool#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hexxt-git/ccpool.git",
+    "directory": "apps/server"
   },
-  "main": "./dist/index.js",
+  "bugs": {
+    "url": "https://github.com/hexxt-git/ccpool/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ccpool-server": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@ccpool/core": "workspace:*",
-    "@ccpool/storage-libsql": "workspace:*",
     "@hono/node-server": "^1.13.7",
+    "@libsql/client": "^0.14.0",
     "hono": "^4.6.14"
   },
   "devDependencies": {
+    "@ccpool/core": "workspace:*",
     "@ccpool/daemon": "workspace:*",
+    "@ccpool/storage-libsql": "workspace:*",
     "@types/node": "^22.0.0",
+    "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

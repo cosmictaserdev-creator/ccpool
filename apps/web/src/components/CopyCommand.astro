@@ -19,23 +19,20 @@ const { command = "npx ccpool@latest", class: className = "" } = Astro.props;
   </code>
   <button
     type="button"
-    class="copy-trigger text-retro-fg/60 hover:text-retro-fg group -m-1 shrink-0 cursor-pointer p-1 transition-colors"
+    class="copy-trigger font-press text-retro-btn bg-retro-orange flex shrink-0 translate-y-[-2px] cursor-pointer items-center justify-center border-none px-[8px] py-[4px] text-[#0a0a0a] shadow-[4px_4px_0_theme(colors.retro.orange-shadow)] transition-all duration-75 hover:translate-x-[2px] hover:translate-y-[0px] hover:shadow-[2px_2px_0_theme(colors.retro.orange-shadow)] active:translate-x-[4px] active:translate-y-[2px] active:shadow-none"
     aria-label={`Copy ${command} to clipboard`}
   >
     <!-- Copy / check icon (pixel-art, swapped on copy) -->
     <svg
-      class="copy-icon h-4 w-4 fill-current"
+      class="copy-icon h-5 w-5 fill-white"
       viewBox="0 0 16 16"
       shape-rendering="crispEdges"
       aria-hidden="true"
     >
-      <path
-        d="M4,1h8v1h-8z M4,2h1v9h-1z M11,2h1v1h-1z M2,3h2v1h-2z M12,3h1v9h-1z M2,4h1v9h-1z
-        M12,12h1v1h-1z M5,11h7v1h-7z M2,13h1v1h-1z M9,13h4v1h-4z M2,14h8v1h-8z"
-      ></path>
+      <path d="M6,2h8v3h-8z M11,5h3v6h-3z M2,6h8v9h-8z"></path>
     </svg>
     <svg
-      class="check-icon text-retro-green hidden h-4 w-4 fill-current"
+      class="check-icon hidden h-5 w-5 fill-white"
       viewBox="0 0 16 16"
       shape-rendering="crispEdges"
       aria-hidden="true"

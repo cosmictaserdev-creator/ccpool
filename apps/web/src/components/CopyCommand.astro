@@ -77,6 +77,8 @@ const { command = "npx ccpool@latest", class: className = "" } = Astro.props;
           ta.remove();
         }
 
+        window.posthog?.capture("install_command_copied", { command });
+
         copyIcon?.classList.add("hidden");
         checkIcon?.classList.remove("hidden");
         clearTimeout(resetTimer);

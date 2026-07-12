@@ -54,6 +54,7 @@ const {
       data-stripes="2"
       data-color="bg"
       data-delay="0.3"
+      data-nav="github"
     >
       <svg viewBox="0 0 16 16" class="h-[22px] w-[22px] fill-current" shape-rendering="crispEdges">
         <path
@@ -189,6 +190,21 @@ const {
     }
   }
 </style>
+
+<script>
+  // Bundled (not is:inline) so Astro executes it exactly once — the
+  // astro:page-load handler is registered a single time and fires on the
+  // initial load and after every ClientRouter soft navigation.
+  document.addEventListener("astro:page-load", () => {
+    document.querySelectorAll<HTMLElement>("[data-nav]").forEach((el) => {
+      if (el.dataset.navWired) return;
+      el.dataset.navWired = "1";
+      el.addEventListener("click", () => {
+        window.posthog?.capture("nav_clicked", { target: el.dataset.nav });
+      });
+    });
+  });
+</script>
 
 <script>
   let initialized = false;

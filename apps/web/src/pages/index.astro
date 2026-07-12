@@ -83,6 +83,7 @@ import PixelBullet from "../components/PixelBullet.astro";
               <Button
                 variant="primary"
                 href="/docs"
+                data-cta="quick_start"
                 class="max-[640px]:block max-[640px]:w-full max-[640px]:text-center"
                 >QUICK START</Button
               >
@@ -97,6 +98,7 @@ import PixelBullet from "../components/PixelBullet.astro";
                 variant="outline"
                 href="https://github.com/hexxt-git/ccpool"
                 target="_blank"
+                data-cta="star_on_github"
                 class="max-[640px]:block max-[640px]:w-full max-[640px]:text-center"
                 >STAR ON GITHUB
                 <span class="inline-block -translate-y-0.5 scale-150"> ⭐️ </span>
@@ -172,4 +174,18 @@ import PixelBullet from "../components/PixelBullet.astro";
       </ul>
     </section>
   </main>
+
+  <script>
+    // Bundled (not is:inline) so Astro runs it once; astro:page-load fires on
+    // the initial load and after every ClientRouter soft navigation.
+    document.addEventListener("astro:page-load", () => {
+      document.querySelectorAll<HTMLElement>("[data-cta]").forEach((el) => {
+        if (el.dataset.ctaWired) return;
+        el.dataset.ctaWired = "1";
+        el.addEventListener("click", () => {
+          window.posthog?.capture("cta_clicked", { label: el.dataset.cta });
+        });
+      });
+    });
+  </script>
 </Layout>

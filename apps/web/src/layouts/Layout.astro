@@ -3,6 +3,7 @@ import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import PostHog from "../components/posthog.astro";
 
 interface Props {
   title?: string;
@@ -54,6 +55,7 @@ const canonicalURL = Astro.site
     <meta property="twitter:description" content={description} />
     <meta property="twitter:image" content={image} />
     <ClientRouter />
+    <PostHog />
 
     <!--
       No-JS fallback: several elements are server-rendered in their pre-animation
@@ -203,6 +205,7 @@ const canonicalURL = Astro.site
       // so a single listener covers both cases without double-firing.
       document.addEventListener("astro:page-load", initReveals);
     </script>
+
 
   </body>
 </html>

@@ -20,6 +20,8 @@ Available as a terminal dashboard (`ccpool tui`), a one-shot snapshot (`ccpool s
 - Live usage bars for all three limits (the 5-hour window, the weekly cap, and the weekly Opus cap) with a countdown to each reset. These are pulled from Anthropic's own usage endpoint, so they match what the account enforces.
 - A per-person breakdown: each member's share of each limit, their token count, and whether they're coding right now.
 - A statusline for Claude Code, so you can watch the shared limits without leaving your editor.
+- **Equal slice** — each person's fair share (tank ÷ members) is shown; members above their slice get a `△` marker.
+- **Soft per-user limit** — set a personal usage ceiling (`ccpool config set limit 25`); exceeding it shows a `!` warning. Never enforced, just a reminder.
 
 > Usage that ccpool can't tie to a person (someone using claude.ai in the browser, for example) shows up as `unknown`. And to be clear about what ccpool is: it observes and reports. It can't raise your limits or block anyone, and it deliberately has no budgets or quotas. It makes the sharing visible and leaves fair use to the group.
 
@@ -75,7 +77,16 @@ ccpool users
 
 # hand this machine off to another person
 ccpool config set name alex
+
+# set a soft per-user usage limit (shows a warning when exceeded)
+ccpool config set limit 25    # warn when anyone hits 25% of a cap
+ccpool config set limit off   # disable the limit
+
+# check your current settings
+ccpool config get
 ```
+
+The **equal slice** feature works automatically — no setup needed. It divides each cap by the number of members and shows who's above their fair share with a `△` marker. The **per-user limit** is a personal preference (`~/.ccpool/config.json`), not shared with the server or other members.
 
 `ccpool` and `ccpool status` show the same thing: the overall account tank on top and each person's slice below it.
 
@@ -93,6 +104,8 @@ members
    1 sam ◂     ███████████████░░░░░░░░░░░░░  45%  23%  active
    2 alex      █████░░░░░░░░░░░░░░░░░░░░░░░  15%   8%  active
    3 unknown   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%   0%  idle
+
+  △ fair slice: 20% each — sam above
 ```
 
 Usage is credited to whatever name the machine is set to, so switching the name switches who gets credited. The switch asks for that person's member password.

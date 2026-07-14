@@ -118,13 +118,23 @@ export function overview(
         </Box>
         {shown.map((u, i) => {
           const col = personColor(model.members, u);
+          const marker = u.overLimit
+            ? " !"
+            : u.byCap.five_hour !== undefined &&
+                model.caps[0] &&
+                (u.byCap.five_hour ?? 0) > (u.fairShare.five_hour ?? 0) + 0.5
+              ? " △"
+              : "";
           return (
             <Box key={off + i} flexShrink={0}>
               <Cell w={COL.rank}>
                 <Text color={P.faint}>{off + i + 1}</Text>
               </Cell>
               <Cell w={COL.member}>
-                <Text color={col}>{u.name}</Text>
+                <Text color={col}>
+                  {u.name}
+                  {marker}
+                </Text>
                 {u.isMe ? <Text color={col}>◂</Text> : null}
               </Cell>
               <Cell w={fiveCol}>
@@ -154,6 +164,27 @@ export function overview(
       {model.unknownNote ? (
         <Box width={inner}>
           <Text color={P.dim}>{UNKNOWN_NOTE}</Text>
+        </Box>
+      ) : null}
+      {model.userLimit !== undefined && model.overLimitNames.length > 0 ? (
+        <Box width={inner}>
+          <Text color={P.amber}>
+            ! limit {model.userLimit}% — {model.overLimitNames.join(", ")} over
+          </Text>
+        </Box>
+      ) : null}
+      {model.overSliceNames.length > 0 && model.userLimit === undefined ? (
+        <Box width={inner}>
+          <Text color={P.dim}>
+            △ fair slice:{" "}
+            {model.caps[0]
+              ? Math.round(
+                  model.caps[0].pct /
+                    Math.max(1, model.members.filter((m) => m.name !== "unknown").length)
+                )
+              : 0}
+            % each — {model.overSliceNames.join(", ")} above
+          </Text>
         </Box>
       ) : null}
       <Box flexGrow={1} />

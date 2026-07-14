@@ -210,6 +210,12 @@ export interface Config {
   pollIntervalMs: number;
   configDirs: string[];
   logLevel: "debug" | "info" | "warn" | "error";
+  /**
+   * Soft per-user usage limit as a percentage of any single cap (0–100).
+   * When a user's share of a cap exceeds this, the TUI and status show a
+   * reminder — it is never enforced.
+   */
+  userLimit?: number;
 }
 
 /** The local account's latest snapshot, for fast/no-network reads. */

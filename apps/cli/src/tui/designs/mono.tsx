@@ -91,6 +91,13 @@ export function mono(
           <Text color={M.mid}>{UNKNOWN_NOTE}</Text>
         </Box>
       ) : null}
+      {model.userLimit !== undefined && model.overLimitNames.length > 0 ? (
+        <Box width={w}>
+          <Text color={P.amber}>
+            ! limit {model.userLimit}% — {model.overLimitNames.join(", ")} over
+          </Text>
+        </Box>
+      ) : null}
       <Box flexGrow={1} />
     </Box>
   );

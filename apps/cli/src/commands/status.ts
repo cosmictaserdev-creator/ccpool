@@ -15,7 +15,7 @@ export async function runStatus(): Promise<void> {
   const { cfg, viewSource } = ctx;
   try {
     const vm = await gatherView(cfg, viewSource);
-    const model = toDesignModel(vm, cfg.name);
+    const model = toDesignModel(vm, cfg.name, cfg.userLimit);
     const color = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
     const width = process.stdout.columns ?? 70;
     for (const line of renderStatusLines(model, { width, color })) console.log(line);

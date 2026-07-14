@@ -166,6 +166,29 @@ export function renderStatusLines(
     lines.push("");
     for (const n of model.notes) lines.push(paint(`  · ${n}`, HEX.dim));
   }
+  if (model.userLimit !== undefined && model.overLimitNames.length > 0) {
+    lines.push(
+      "",
+      paint(
+        `  ! limit ${model.userLimit}% — ${model.overLimitNames.join(", ")} over`,
+        HEX.amber,
+        true
+      )
+    );
+  } else if (model.overSliceNames.length > 0) {
+    const fairSlice = model.caps[0]
+      ? Math.round(
+          model.caps[0].pct / Math.max(1, model.members.filter((m) => m.name !== "unknown").length)
+        )
+      : 0;
+    lines.push(
+      "",
+      paint(
+        `  △ fair slice: ${fairSlice}% each — ${model.overSliceNames.join(", ")} above`,
+        HEX.dim
+      )
+    );
+  }
   const color = opts.color ?? false;
   const gh = paint(link("github.com/hexxt-git/ccpool", GITHUB_URL, color), HEX.blue);
   const site = paint(link("ccpool.hexxt.dev", SITE_URL, color), HEX.blue);

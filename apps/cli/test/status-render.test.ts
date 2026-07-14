@@ -16,6 +16,9 @@ function emptyModel(daemonRunning: boolean): DesignModel {
     notes: [],
     loggedOut: false,
     alert: null,
+    unknownNote: false,
+    overSliceNames: [],
+    overLimitNames: [],
   };
 }
 

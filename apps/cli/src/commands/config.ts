@@ -11,7 +11,7 @@ import { resolveServerUrl } from "../lib/backend.js";
 import { withPrompts } from "../lib/prompt.js";
 import { isDaemonRunning, runDaemonRestart } from "./daemon.js";
 
-const SETTABLE = ["name", "pollIntervalMs", "logLevel"] as const;
+const SETTABLE = ["name", "pollIntervalMs", "logLevel", "limit"] as const;
 
 export async function runConfigGet(key?: string): Promise<void> {
   const cfg = await loadConfig();
@@ -25,6 +25,7 @@ export async function runConfigGet(key?: string): Promise<void> {
     console.log(`server.url     ${cfg.server?.url ?? "—"}`);
     console.log(`pollIntervalMs ${cfg.pollIntervalMs}`);
     console.log(`logLevel       ${cfg.logLevel}`);
+    console.log(`limit          ${cfg.userLimit != null ? cfg.userLimit + "%" : "not set"}`);
     return;
   }
   const value = readKey(cfg, key);
@@ -115,6 +116,22 @@ export async function runConfigSet(key: string, value: string): Promise<void> {
       cfg.logLevel = value as Config["logLevel"];
       break;
     }
+    case "limit": {
+      if (value === "off" || value === "none" || value === "0") {
+        cfg.userLimit = undefined;
+        console.log("Limit removed.");
+        await saveConfig(cfg);
+        return;
+      }
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 1 || n > 100) {
+        console.error("limit must be a number 1–100, or 'off' to disable.");
+        process.exitCode = 1;
+        return;
+      }
+      cfg.userLimit = n;
+      break;
+    }
     default:
       console.error(`"${key}" is not settable. Settable keys: ${SETTABLE.join(", ")}.`);
       process.exitCode = 1;
@@ -140,6 +157,8 @@ function readKey(cfg: Config, key: string): unknown {
       return cfg.pollIntervalMs;
     case "logLevel":
       return cfg.logLevel;
+    case "limit":
+      return cfg.userLimit ?? "not set (no per-user limit)";
     default:
       return undefined;
   }

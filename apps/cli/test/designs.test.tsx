@@ -37,7 +37,7 @@ const vm: ViewModel = {
 };
 
 describe("toDesignModel", () => {
-  const model = toDesignModel(vm, "alice", now);
+  const model = toDesignModel(vm, "alice", undefined, now);
 
   it("flattens caps, joins tokens/active, and keeps unknown last", () => {
     expect(model.caps.map((c) => c.short)).toEqual(["5h", "wk", "opus"]);
@@ -71,14 +71,14 @@ describe("toDesignModel", () => {
       ],
       samples: [{ cap: "five_hour", pct: 100, resetsAt: iso(-160), capturedAt: iso(0) }],
     };
-    expect(toDesignModel(tinyUnknown, "alice", now).unknownNote).toBe(false);
+    expect(toDesignModel(tinyUnknown, "alice", undefined, now).unknownNote).toBe(false);
   });
 });
 
 describe("the `unknown` explainer wraps to the available width", () => {
   // The note is never shortened — on a narrow terminal it wraps across as many rows
   // as it needs; on a wide one it sits on a single line.
-  const model = toDesignModel(vm, "alice", now);
+  const model = toDesignModel(vm, "alice", undefined, now);
   const flat = (s: string) => s.replace(/\s+/g, " ");
   for (const d of DESIGNS) {
     it(`renders "${d.name}" wrapping the full note at narrow width`, () => {
@@ -100,7 +100,7 @@ describe("the `unknown` explainer wraps to the available width", () => {
 });
 
 describe("designs render", () => {
-  const model = toDesignModel(vm, "alice", now);
+  const model = toDesignModel(vm, "alice", undefined, now);
   for (const d of DESIGNS) {
     it(`renders "${d.name}" without throwing, showing identity + members`, () => {
       const { lastFrame, unmount } = render(<Box>{d.render(model, 108, 24, 0)}</Box>);
@@ -129,7 +129,7 @@ describe("no data / never sync designs render", () => {
     account: null,
     updatedAt: null,
   };
-  const model = toDesignModel(noneVm, "alice", now);
+  const model = toDesignModel(noneVm, "alice", undefined, now);
 
   it("shows no members and no fabricated caps when there is no data", () => {
     expect(model.members).toEqual([]);
@@ -161,7 +161,7 @@ describe("logged out (server rejected the bearer)", () => {
     account: "zeghdns@gmail.com",
     updatedAt: iso(1),
   };
-  const model = toDesignModel(loggedOutVm, "alice", now);
+  const model = toDesignModel(loggedOutVm, "alice", undefined, now);
 
   it("surfaces a logged-out alert and shows only the unattributed unknown row", () => {
     expect(model.alert).toMatch(/logged out/i);
@@ -191,7 +191,7 @@ describe("usage poll rate-limited (429)", () => {
     loggedOut: false,
     pollError: { status: 429, message: "rate-limited (429)", at: iso(1) },
   };
-  const model = toDesignModel(rateLimitedVm, "alice", now);
+  const model = toDesignModel(rateLimitedVm, "alice", undefined, now);
 
   it("raises a red alert naming the 429 while keeping the members", () => {
     expect(model.alert).toMatch(/rate-limited \(429\)/);
@@ -229,7 +229,7 @@ describe("freshly initialized ledger (connected, no usage yet)", () => {
     account: "zeghdns@gmail.com",
     updatedAt: iso(0),
   };
-  const model = toDesignModel(freshVm, "sam", now);
+  const model = toDesignModel(freshVm, "sam", undefined, now);
 
   it("shows exactly the unknown row, holding the full tank per cap", () => {
     expect(model.alert).toBeNull();

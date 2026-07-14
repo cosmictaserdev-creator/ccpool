@@ -109,7 +109,7 @@ export function App({
       // roster rather than chaining off an already-degraded one.
       if (!vm.stale)
         lastRoster.current = { shares: vm.shares, members: vm.members, users: vm.users };
-      setModel(toDesignModel(vm, freshCfg?.name ?? cfg.name));
+      setModel(toDesignModel(vm, freshCfg?.name ?? cfg.name, freshCfg?.userLimit ?? cfg.userLimit));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);

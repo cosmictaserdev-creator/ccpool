@@ -35,6 +35,10 @@ export interface DesignMember {
   byCap: Partial<Record<CapKind, number>>;
   tokens: number;
   active: boolean;
+  /** Equal slice per cap: tank / real member count. 0 for `unknown`. */
+  fairShare: Partial<Record<CapKind, number>>;
+  /** True when this member's share of any cap exceeds the configured userLimit. */
+  overLimit: boolean;
 }
 
 export interface DesignModel {
@@ -53,13 +57,24 @@ export interface DesignModel {
   alert: string | null;
   /** Whether `unknown` holds a non-trivial share (> 5% of any cap) worth explaining. */
   unknownNote: boolean;
+  /** The configured soft per-user limit (0–100), or undefined when not set. */
+  userLimit?: number;
+  /** Names of members who exceed their fair slice on any cap. */
+  overSliceNames: string[];
+  /** Names of members who exceed the userLimit on any cap. */
+  overLimitNames: string[];
 }
 
 /** What `unknown` actually is — shown when its share is big enough to puzzle people. */
 export const UNKNOWN_NOTE =
   '"unknown" counts usage on the claude.ai website or mobile app, or usage without ccpool running';
 
-export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now()): DesignModel {
+export function toDesignModel(
+  vm: ViewModel,
+  me: string,
+  userLimit?: number,
+  now: number = Date.now()
+): DesignModel {
   const byCapSample = new Map(vm.samples.map((s) => [s.cap, s]));
   const caps: DesignCap[] = [];
 
@@ -83,11 +98,34 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
   for (const sh of vm.shares) shareOf.set(`${sh.user}:${sh.cap}`, sh.pct);
   const statByName = new Map(vm.members.map((m) => [m.user, m]));
 
+  // Fair slice: tank / real member count (exclude `unknown`).
+  const realMembers = [...names].filter((n) => n !== UNKNOWN_USER);
+  const memberCount = Math.max(1, realMembers.length);
+  const tankByCap = new Map(caps.map((c) => [c.kind, c.pct]));
+  const fairShareOf = (name: string, kind: CapKind): number => {
+    if (name === UNKNOWN_USER) return 0;
+    return (tankByCap.get(kind) ?? 0) / memberCount;
+  };
+
+  const overSliceNames: string[] = [];
+  const overLimitNames: string[] = [];
+
   const members: DesignMember[] = [...names].map((name) => {
     const byCap: Partial<Record<CapKind, number>> = {};
+    const fairShare: Partial<Record<CapKind, number>> = {};
+    let overLimit = false;
     for (const c of caps) {
       const v = shareOf.get(`${name}:${c.kind}`);
       if (v !== undefined) byCap[c.kind] = v;
+      const fs = fairShareOf(name, c.kind);
+      fairShare[c.kind] = fs;
+      if (v !== undefined && v > fs + 0.5) {
+        if (!overSliceNames.includes(name)) overSliceNames.push(name);
+      }
+      if (userLimit !== undefined && v !== undefined && v > userLimit) {
+        overLimit = true;
+        if (!overLimitNames.includes(name)) overLimitNames.push(name);
+      }
     }
     const stat = statByName.get(name);
     return {
@@ -95,8 +133,9 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
       isMe: name === me,
       byCap,
       tokens: stat?.tokens ?? 0,
-      // "active" = currently holding any of the 5h window; unknown is never active
       active: name !== UNKNOWN_USER && (byCap.five_hour ?? 0) > 0,
+      fairShare,
+      overLimit,
     };
   });
 
@@ -109,7 +148,15 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
       const others = members.reduce((sum, m) => sum + (m.byCap[c.kind] ?? 0), 0);
       byCap[c.kind] = Math.max(0, c.pct - others);
     }
-    members.push({ name: UNKNOWN_USER, isMe: false, byCap, tokens: 0, active: false });
+    members.push({
+      name: UNKNOWN_USER,
+      isMe: false,
+      byCap,
+      tokens: 0,
+      active: false,
+      fairShare: {},
+      overLimit: false,
+    });
   }
 
   // sort by the first present cap's share desc; unknown always last
@@ -162,6 +209,9 @@ export function toDesignModel(vm: ViewModel, me: string, now: number = Date.now(
     loggedOut: vm.loggedOut,
     alert,
     unknownNote,
+    userLimit,
+    overSliceNames,
+    overLimitNames,
   };
 }
 

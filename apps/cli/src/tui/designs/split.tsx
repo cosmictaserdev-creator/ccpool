@@ -129,6 +129,13 @@ export function split(
           <Text color={P.dim}>{UNKNOWN_NOTE}</Text>
         </Box>
       ) : null}
+      {model.userLimit !== undefined && model.overLimitNames.length > 0 ? (
+        <Box width={leftW + 2 + rightW}>
+          <Text color={P.amber}>
+            ! limit {model.userLimit}% — {model.overLimitNames.join(", ")} over
+          </Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }
